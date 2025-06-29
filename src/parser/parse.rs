@@ -75,4 +75,70 @@ mod tests {
             Stmt::Return(Expr::Const(n)) => assert_eq!(n, 42),
         }
     }
+
+    #[test]
+    fn test_return_large_number() {
+        let tokens = lex("int main() { return 123456; }").unwrap();
+        let ast = parse(&tokens).unwrap();
+        match ast.function.body {
+            Stmt::Return(Expr::Const(n)) => assert_eq!(n, 123456),
+        }
+    }
+
+    #[test]
+    fn test_missing_semicolon() {
+        let tokens = lex("int main() { return 42 }").unwrap();
+        assert!(parse(&tokens).is_err());
+    }
+
+    #[test]
+    fn test_missing_return_value() {
+        let tokens = lex("int main() { return ; }").unwrap();
+        assert!(parse(&tokens).is_err());
+    }
+
+    #[test]
+    fn test_unexpected_token() {
+        let tokens = lex("int main() { return xyz; }").unwrap();
+        assert!(parse(&tokens).is_err()); // 'xyz' is not a valid literal
+    }
+
+    #[test]
+    fn test_weird_spacing() {
+        let tokens = lex("int    main   (  )  {   return    1 ; }").unwrap();
+        let ast = parse(&tokens).unwrap();
+        match ast.function.body {
+            Stmt::Return(Expr::Const(n)) => assert_eq!(n, 1),
+        }
+    }
+
+    #[test]
+    fn test_newlines() {
+        let code = r#"
+        int main()
+        {
+            return 5;
+        }
+    "#;
+        let tokens = lex(code).unwrap();
+        let ast = parse(&tokens).unwrap();
+        match ast.function.body {
+            Stmt::Return(Expr::Const(n)) => assert_eq!(n, 5),
+        }
+    }
+
+    #[test]
+    fn test_large_integer() {
+        let tokens = lex(&format!("int main() {{ return {}; }}", i32::MAX)).unwrap();
+        let ast = parse(&tokens).unwrap();
+        match ast.function.body {
+            Stmt::Return(Expr::Const(n)) => assert_eq!(n, i32::MAX),
+        }
+    }
+
+    #[test]
+    fn test_too_large_integer() {
+        let result = lex("int main() { return 99999999999; }");
+        assert!(result.is_err()); // Lexing should fail on overflow
+    }
 }

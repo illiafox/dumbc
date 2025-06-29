@@ -3,7 +3,7 @@ use std::iter::Peekable;
 use std::str::Chars;
 
 fn is_identifier_char(c: &char) -> bool {
-    c.is_alphabetic() || *c == '_'
+    c.is_alphanumeric() || *c == '_'
 }
 
 fn consume_until<F>(chars: &mut Peekable<Chars>, condition: F) -> String
@@ -33,7 +33,7 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
             continue;
         }
 
-        if is_identifier_char(&ch) {
+        if ch.is_alphabetic() || ch == '_' {
             let ident = consume_until(&mut chars, is_identifier_char);
             match ident.as_str() {
                 "int" => tokens.push(Token::KeywordInt),
@@ -78,23 +78,78 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
     Ok(tokens)
 }
 
-#[test]
-fn test_lexer() {
-    let code = "int main() { return 42; }";
-    let tokens = lex(code).unwrap();
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lexer::lex;
 
-    assert_eq!(
-        tokens,
-        vec![
-            Token::KeywordInt,
-            Token::Identifier("main".into()),
-            Token::LParen,
-            Token::RParen,
-            Token::LBrace,
-            Token::KeywordReturn,
-            Token::IntLiteral(42),
-            Token::Semicolon,
-            Token::RBrace,
-        ]
-    );
+    #[test]
+    fn test_lexer() {
+        let code = "int main() { return 42; }";
+        let tokens = lex(code).unwrap();
+
+        assert_eq!(
+            tokens,
+            vec![
+                Token::KeywordInt,
+                Token::Identifier("main".into()),
+                Token::LParen,
+                Token::RParen,
+                Token::LBrace,
+                Token::KeywordReturn,
+                Token::IntLiteral(42),
+                Token::Semicolon,
+                Token::RBrace,
+            ]
+        );
+    }
+
+    #[test]
+    fn test_lexer_whitespace_variants() {
+        let code = " int\tmain (  ) { \nreturn\t42 ; } ";
+        let tokens = lex(code).unwrap();
+
+        assert_eq!(
+            tokens,
+            vec![
+                Token::KeywordInt,
+                Token::Identifier("main".into()),
+                Token::LParen,
+                Token::RParen,
+                Token::LBrace,
+                Token::KeywordReturn,
+                Token::IntLiteral(42),
+                Token::Semicolon,
+                Token::RBrace,
+            ]
+        );
+    }
+
+    #[test]
+    fn test_lexer_unknown_symbol() {
+        let code = "int main() { return 42$; }";
+        let result = lex(code);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_lexer_identifier_with_underscore() {
+        let code = "int _main_123() { return 1; }";
+        let tokens = lex(code).unwrap();
+
+        assert_eq!(
+            tokens,
+            vec![
+                Token::KeywordInt,
+                Token::Identifier("_main_123".into()),
+                Token::LParen,
+                Token::RParen,
+                Token::LBrace,
+                Token::KeywordReturn,
+                Token::IntLiteral(1),
+                Token::Semicolon,
+                Token::RBrace,
+            ]
+        );
+    }
 }
