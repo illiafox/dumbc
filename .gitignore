@@ -2,12 +2,12 @@
 /target/
 **/*.rs.bk
 
-# Ignore everything in tests
-/tests/*
-# Allow the tests directory itself
-!/tests/
-# Allow .c files inside /tests
-!/tests/*.c
+# Ignore everything in examples
+/examples/*
+# Allow the examples directory itself
+!/examples/
+# Allow .c files inside /examples
+!/examples/*.c
 
 
 # IDE/editor files

@@ -16,6 +16,9 @@ impl fmt::Display for Token {
             Token::Minus => write!(f, "Symbol<->"),
             Token::Tilde => write!(f, "Symbol<~>"),
             Token::Bang => write!(f, "Symbol<!>"),
+            Token::Plus => write!(f, "Symbol<+>"),
+            Token::Asterisk => write!(f, "Symbol<*>"),
+            Token::Slash => write!(f, "Symbol</>"),
         }
     }
 }

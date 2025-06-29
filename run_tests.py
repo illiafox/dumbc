@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 import os
 
-STAGES = [1, 2]
+STAGES = [1, 2, 3]
 TARGET_ARCHS = ['arm64']
 BASE = Path("testsuite")
 

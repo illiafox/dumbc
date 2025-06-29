@@ -1,4 +1,5 @@
-use crate::ast::{Expr, Program, Stmt, UnaryOp};
+use crate::ast::Expr::BinOp;
+use crate::ast::{BinaryOp, Expr, Program, Stmt, UnaryOp};
 use std::fmt;
 use std::fmt::{Error, Write};
 
@@ -21,6 +22,23 @@ pub fn generate_expr(output: &mut dyn Write, expr: &Expr) -> fmt::Result {
                     // set w0 = 1 if w0 was equal to 0
                     writeln!(output, "cset\tw0, eq")?;
                 }
+            }
+        }
+        BinOp(op, lhs, rhs) => {
+            generate_expr(output, lhs)?;
+            writeln!(output, "str\tw0, [sp, #-16]!")?; // push w0 on stack
+
+            generate_expr(output, rhs)?;
+            writeln!(output, "ldr\tw1, [sp], #16")?; // pop previous w0 result into w1
+
+            // w0 - result of evaluating rhs
+            // w1 - result of evaluating lhs
+
+            match op {
+                BinaryOp::Add => writeln!(output, "add\tw0, w1, w0")?,
+                BinaryOp::Sub => writeln!(output, "sub\tw0, w1, w0")?,
+                BinaryOp::Multiply => writeln!(output, "mul\tw0, w1, w0")?,
+                BinaryOp::Divide => writeln!(output, "sdiv\tw0, w1, w0")?,
             }
         }
     }
