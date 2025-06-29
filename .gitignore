@@ -1,0 +1,25 @@
+# Rust build output
+/target/
+**/*.rs.bk
+
+# Ignore everything in tests
+/tests/*
+# Allow the tests directory itself
+!/tests/
+# Allow .c files inside /tests
+!/tests/*.c
+
+
+# IDE/editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*.iml
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Misc
+*.log
