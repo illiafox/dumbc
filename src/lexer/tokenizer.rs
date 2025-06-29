@@ -50,28 +50,23 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
             continue;
         }
 
-        match ch {
-            '(' => {
-                tokens.push(Token::LParen);
-                chars.next();
-            }
-            ')' => {
-                tokens.push(Token::RParen);
-                chars.next();
-            }
-            '{' => {
-                tokens.push(Token::LBrace);
-                chars.next();
-            }
-            '}' => {
-                tokens.push(Token::RBrace);
-                chars.next();
-            }
-            ';' => {
-                tokens.push(Token::Semicolon);
-                chars.next();
-            }
-            _ => return Err(format!("Unexpected character: '{}'", ch)),
+        let token = match ch {
+            '(' => Some(Token::LParen),
+            ')' => Some(Token::RParen),
+            '{' => Some(Token::LBrace),
+            '}' => Some(Token::RBrace),
+            ';' => Some(Token::Semicolon),
+            '-' => Some(Token::Minus),
+            '~' => Some(Token::Tilde),
+            '!' => Some(Token::Bang),
+            _ => None,
+        };
+
+        if let Some(tok) = token {
+            tokens.push(tok);
+            chars.next();
+        } else {
+            return Err(format!("Unexpected character: '{}'", ch));
         }
     }
 

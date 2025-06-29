@@ -2,7 +2,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-stages = [1]
+stages = [1, 2]
 BASE = Path("testsuite")
 any_failed = False
 

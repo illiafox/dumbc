@@ -9,4 +9,7 @@ pub enum Token {
     LBrace,             // {
     RBrace,             // }
     Semicolon,          // ;
+    Minus,              // -
+    Tilde,              // ~
+    Bang,               // !
 }
