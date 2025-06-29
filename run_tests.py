@@ -15,11 +15,63 @@ RESET = "\033[0m"
 
 USE_GITHUB_FORMAT = os.getenv("GITHUB_ANNOTATIONS") == "1"
 
+COMPILE_DISABLED = os.getenv("COMPILE_DISABLED") == "1"
 
-def run_test(file: Path, expect_success: bool, arch: str) -> bool:
-    print(f"Testing {file}...", end=" ")
+
+def compile_and_run(source: Path, output: Path, arch: str) -> str:
+    # Compile
+    subprocess.run(
+        ["clang", "-arch", arch, "-o", str(output), str(source)],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    # Run and capture output
+    result = subprocess.run([str(output)], capture_output=True, text=True)
+    return result.stdout.strip(), result.returncode
+
+
+def compare_c_and_s_outputs(c_file: Path, s_file: Path, arch: str = "arm64") -> bool:
+    if not c_file.exists() or not s_file.exists():
+        print(f"{RED}Missing file(s): {c_file}, {s_file}{RESET}")
+        return False
+
+    base = c_file.stem
+    bin_c = c_file.with_name(f"{base}.c.bin")
+    bin_s = s_file.with_name(f"{base}.s.bin")
+
+    try:
+        output_c, code_c = compile_and_run(c_file, bin_c, arch)
+        output_s, code_s = compile_and_run(s_file, bin_s, arch)
+    except subprocess.CalledProcessError as e:
+        print(f"{RED}Compilation failed: {e}{RESET}")
+        return False
+
+    match_output = output_c == output_s
+    match_code = code_c == code_s
+
+    if match_output and match_code:
+        print(f"{GREEN}PASS (+ MATCH){RESET}")
+        return True
+
+    print(f"{RED}MISMATCH DETECTED{RESET}")
+    if not match_code:
+        print(f"Return codes differ: C={code_c}, ASM={code_s}")
+    if not match_output:
+        print("--- C output ---")
+        print(output_c)
+        print("--- S output ---")
+        print(output_s)
+        print("--- Diff ---")
+        diff = difflib.ndiff(output_c.splitlines(), output_s.splitlines())
+        print("\n".join(diff))
+    return False
+
+
+def run_test(c_file: Path, expect_success: bool, arch: str) -> bool:
+    print(f"Testing {c_file}...", end=" ")
     result = subprocess.run(
-        ["cargo", "run", "--quiet", "--", str(file), "--arch", arch],
+        ["cargo", "run", "--quiet", "--", str(c_file), "--arch", arch],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE
     )
@@ -32,6 +84,9 @@ def run_test(file: Path, expect_success: bool, arch: str) -> bool:
         print(f"{RED}ERROR: should fail{RESET}")
         return False
     else:
+        if expect_success and not COMPILE_DISABLED:
+            s_file = c_file.with_suffix(".s")
+            return compare_c_and_s_outputs(c_file, s_file, arch)
         print(f"{GREEN}PASS{RESET}")
         return True
 
