@@ -24,6 +24,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang gcc-aarch64-linux-gnu python3 python3-pip cargo
 
+      - name: Install QEMU
+        run: |
+          sudo apt-get install -y qemu-user
+
       - name: Run Rust unit tests
         run: cargo test --verbose
 
@@ -31,3 +35,4 @@ jobs:
         run: python3 run_tests.py --arch-style=gnu
         env:
           GITHUB_ANNOTATIONS: "1"
+          CROSS_COMPILE: "1"

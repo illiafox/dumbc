@@ -2,6 +2,7 @@ import subprocess
 import sys
 from pathlib import Path
 import os
+import difflib
 
 STAGES = [1, 2, 3]
 TARGET_ARCHS = ['aarch64']
@@ -14,8 +15,10 @@ YELLOW = "\033[93m"
 RESET = "\033[0m"
 
 USE_GITHUB_FORMAT = os.getenv("GITHUB_ANNOTATIONS") == "1"
+CROSS_COMPILE = os.getenv("CROSS_COMPILE") == "1"
 
 import argparse
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -24,10 +27,13 @@ def parse_args():
     parser.add_argument("--disable-compile", action="store_true",
                         help="Disable compilation and output comparison")
     return parser.parse_args()
+
+
 args = parse_args()
 
 COMPILE_DISABLED = args.disable_compile
 ARCH_STYLE = args.arch_style
+
 
 def build_clang_command(source: Path, output: Path, arch: str, style: str) -> list[str]:
     cmd = ["clang"]
@@ -52,7 +58,10 @@ def compile_and_run(source: Path, output: Path, arch: str) -> str:
     )
 
     # Run the compiled binary and capture output
-    result = subprocess.run([str(output)], capture_output=True, text=True)
+    if CROSS_COMPILE:
+        result = subprocess.run(["qemu-aarch64", str(output)], ...)
+    else:
+        result = subprocess.run([str(output)], ...)
     return result.stdout.strip(), result.returncode
 
 
