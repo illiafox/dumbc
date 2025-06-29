@@ -51,7 +51,7 @@ pub fn generate(program: &Program) -> Result<String, Error> {
     let mut output = String::new();
     use std::fmt::Write;
 
-    writeln!(output, ".globl _{}", function.name)?;
+    writeln!(output, ".global _{}", function.name)?;
     writeln!(output, "_{}:", function.name)?;
 
     writeln!(output, "sub	sp, sp, #16")?; // reserve stack space
