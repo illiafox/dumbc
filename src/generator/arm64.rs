@@ -1,7 +1,7 @@
 use crate::ast::Expr::BinOp;
 use crate::ast::{BinaryOp, Expr, Program, Stmt, UnaryOp};
 use std::fmt;
-use std::fmt::{Error, Write};
+use std::fmt::Write;
 
 pub fn generate_expr(output: &mut dyn Write, expr: &Expr) -> fmt::Result {
     match expr {
@@ -46,14 +46,18 @@ pub fn generate_expr(output: &mut dyn Write, expr: &Expr) -> fmt::Result {
     Ok(())
 }
 
-pub fn generate(program: &Program) -> Result<String, Error> {
+pub fn generate(program: &Program, platform: &str) -> Result<String, Box<dyn std::error::Error>> {
     let function = &program.function;
     let mut output = String::new();
     use std::fmt::Write;
 
-    writeln!(output, ".global _{}", function.name)?;
-    writeln!(output, "_{}:", function.name)?;
-
+    let prefix = match platform {
+        "macos" => "_", // macOS (Mach-O), label _main
+        "linux" => "",  // Linux (ELF), label main
+        _ => return Err(format!("Unsupported platform {platform}").into()),
+    };
+    writeln!(output, ".global {}main", prefix)?;
+    writeln!(output, "{}main:", prefix)?;
     writeln!(output, "sub	sp, sp, #16")?; // reserve stack space
 
     match &function.body {
