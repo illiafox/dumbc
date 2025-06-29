@@ -18,8 +18,14 @@ Built by following [Nora Sandler’s "Write a Compiler"](https://norasandler.com
 
 - [x] Part 1: Compile `int main() { return <int>; }`
 - [x] Part 2: Add unary operators (`-`, `~`, `!`)
-- [ ] Part 3: Add binary operators (`+`, `-`, etc.)
-- [ ] Part 4+: Control flow, variables, types...
+- [x] Part 3: Add binary operators (`+`, `-`, etc.)
+- [ ] Part 4: Even More Binary Operators
+- [ ] Part 5: Local Variables
+- [ ] Part 6: Conditionals
+- [ ] Part 7: Compound Statements
+- [ ] Part 8: Loops
+- [ ] Part 9: Functions
+- [ ] Part 10: Global Variables
 
 ---
 
@@ -37,7 +43,7 @@ cargo run -- path/to/file.c [--arch arm64]
 ### Example:
 
 ```bash
-cargo run -- tests/return_42.c
+cargo run -- examples/return_42.c
 ```
 
 Produces `return_42.s`
