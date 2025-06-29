@@ -12,6 +12,7 @@ RED = "\033[91m"
 YELLOW = "\033[93m"
 RESET = "\033[0m"
 
+
 def run_test(file: Path, expect_success: bool):
     global any_failed
     print(f"Testing {file}...", end=" ")
@@ -31,24 +32,40 @@ def run_test(file: Path, expect_success: bool):
     else:
         print(f"{GREEN}PASS{RESET}")
 
+
 def main():
+    total = 0
+    passed = 0
+    failed = 0
+
     for stage in stages:
         stage_dir = BASE / f"stage_{stage}"
         valid = stage_dir / "valid"
         invalid = stage_dir / "invalid"
 
         for f in valid.glob("*.c"):
-            run_test(f, expect_success=True)
+            total += 1
+            if run_test(f, expect_success=True):
+                passed += 1
+            else:
+                failed += 1
+
         for f in invalid.glob("*.c"):
-            run_test(f, expect_success=False)
+            total += 1
+            if run_test(f, expect_success=False):
+                passed += 1
+            else:
+                failed += 1
 
     print("\nSummary:")
-    if any_failed:
-        print("Some tests failed.")
+    print(f"Total: {total}, Passed: {passed}, Failed: {failed}")
+    if failed:
+        print(f"{RED}Some tests failed.{RESET}")
         sys.exit(1)
     else:
-        print("All tests passed.")
+        print(f"{GREEN}All tests passed.{RESET}")
         sys.exit(0)
+
 
 if __name__ == "__main__":
     main()
