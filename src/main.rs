@@ -11,7 +11,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = std::env::args().skip(1); // skip program name
     let input_path = args
         .next()
-        .expect("Usage: dumbc <file.c> [--arch arch] [--platform darwin|linux]");
+        .expect("Usage: dumbc <file.c> [--arch arch] [--platform macos|linux]");
 
     let mut arch = std::env::consts::ARCH.to_string();
     let mut platform = std::env::consts::OS.to_string(); // default to host OS (e.g. "linux", "darwin")

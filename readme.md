@@ -10,7 +10,7 @@ Built by following [Nora Sandler’s "Write a Compiler"](https://norasandler.com
 
 ## Supported Architectures
 
-- **arm64** (AArch64 only)
+- **arm64** (darwin and linux only)
 
 ---
 
@@ -34,10 +34,10 @@ Built by following [Nora Sandler’s "Write a Compiler"](https://norasandler.com
 ### Compile and run a `.c` file:
 
 ```bash
-cargo run -- path/to/file.c [--arch arm64]
+cargo run -- path/to/file.c [--arch arm64] [--platform macos|linux]
 ```
 
-- If `--arch` is not specified, the system architecture is used.
+- If `--arch` is not specified, the system architecture is used. Same for `--platform`
 - Only arm64 is supported now
 
 ### Example:
