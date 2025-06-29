@@ -1,14 +1,21 @@
 name: Tests
-on: [ push ]
+on: [push]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   rust-test:
-    name: Run rust tests
+    name: Run rust tests and compiler suite
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: rustup update stable && rustup default stable
-      - run: cargo test --verbose
+
+      - name: Install Rust
+        run: rustup update stable && rustup default stable
+
+      - name: Run Rust unit tests
+        run: cargo test --verbose
+
+      - name: Run custom test suits
+        run: python3 run_tests.py
