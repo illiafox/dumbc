@@ -47,6 +47,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let input = std::fs::read_to_string(&input_path)?;
     let tokens = lex(&input).expect("Lexer failed");
+    println!("{:?}", tokens);
+
     let program = parse(&tokens).expect("Parser failed");
 
     println!("{}", program);

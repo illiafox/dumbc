@@ -1,6 +1,6 @@
-use crate::ast::Expr::BinOp;
-use crate::ast::{BinaryOp, Expr, Function, Program, Stmt, UnaryOp};
+use crate::ast::{Function, Program, Stmt};
 use crate::lexer::Token;
+use crate::parser::expr::parse_expr;
 
 fn expect(tokens: &[Token], pos: &mut usize, expected: &Token) -> Result<(), String> {
     if tokens.get(*pos) == Some(expected) {
@@ -26,76 +26,6 @@ fn expect_ident(tokens: &[Token], pos: &mut usize) -> Result<String, String> {
         }
         other => Err(format!("expected identifier, found {:?}", other)),
     }
-}
-
-fn parse_term(tokens: &[Token], pos: &mut usize) -> Result<Expr, String> {
-    let mut expr = parse_factor(tokens, pos)?;
-
-    while let Some(op_token) = tokens.get(*pos) {
-        let op = match op_token {
-            Token::Asterisk => BinaryOp::Multiply,
-            Token::Slash => BinaryOp::Divide,
-            _ => break, // not a term-level operator, stop looping
-        };
-
-        *pos += 1;
-        let rhs = parse_factor(tokens, pos)?;
-        expr = BinOp(op, Box::new(expr), Box::new(rhs));
-    }
-
-    Ok(expr)
-}
-
-fn parse_factor(tokens: &[Token], pos: &mut usize) -> Result<Expr, String> {
-    match tokens.get(*pos) {
-        Some(Token::IntLiteral(n)) => {
-            *pos += 1;
-            Ok(Expr::Const(*n))
-        }
-
-        Some(Token::LParen) => {
-            *pos += 1;
-            let expr = parse_expr(tokens, pos)?;
-            if tokens.get(*pos) == Some(&Token::RParen) {
-                *pos += 1;
-                Ok(expr)
-            } else {
-                Err("expected ')'".to_string())
-            }
-        }
-
-        Some(Token::Minus | Token::Tilde | Token::Bang) => {
-            let op = match tokens[*pos] {
-                Token::Minus => UnaryOp::Neg,
-                Token::Tilde => UnaryOp::BitNot,
-                Token::Bang => UnaryOp::Not,
-                _ => unreachable!(),
-            };
-            *pos += 1;
-            let inner = parse_factor(tokens, pos)?;
-            Ok(Expr::UnOp(op, Box::new(inner)))
-        }
-
-        other => Err(format!("expected factor, found {:?}", other)),
-    }
-}
-
-fn parse_expr(tokens: &[Token], pos: &mut usize) -> Result<Expr, String> {
-    let mut left = parse_term(tokens, pos)?;
-
-    while let Some(op_token) = tokens.get(*pos) {
-        let op = match op_token {
-            Token::Plus => BinaryOp::Add,
-            Token::Minus => BinaryOp::Sub,
-            _ => break, // stop loop if it's not a + or -
-        };
-
-        *pos += 1;
-        let right = parse_term(tokens, pos)?;
-        left = BinOp(op, Box::new(left), Box::new(right));
-    }
-
-    Ok(left)
 }
 
 pub fn parse(tokens: &[Token]) -> Result<Program, String> {
@@ -126,6 +56,7 @@ pub fn parse(tokens: &[Token]) -> Result<Program, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ast::Expr;
     use crate::lexer::lex;
 
     #[test]

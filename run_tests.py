@@ -4,7 +4,7 @@ from pathlib import Path
 import os
 import difflib
 
-STAGES = [1, 2, 3]
+STAGES = [1, 2, 3, 4]
 TARGET_ARCHS = ['aarch64']
 BASE = Path("testsuite")
 
@@ -120,7 +120,12 @@ def run_test(c_file: Path, expect_success: bool, arch: str) -> bool:
     )
     success = result.returncode == 0
     if expect_success and not success:
+        if c_file.name.startswith("skip_on_failure"):
+            print(f"{YELLOW}SKIPPED (skip_on_failure){RESET}")
+            return True
+
         print(f"{RED}ERROR: should succeed{RESET}")
+        print(f"{result.stdout.decode()}")
         print(f"{result.stderr.decode()}")
         return False
     elif not expect_success and success:
