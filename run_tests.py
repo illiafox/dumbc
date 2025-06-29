@@ -1,17 +1,19 @@
 import subprocess
 import sys
 from pathlib import Path
+import os
 
-stages = [1, 2]
-target_archs = ['arm64']
+STAGES = [1, 2]
+TARGET_ARCHS = ['arm64']
 BASE = Path("testsuite")
-any_failed = False
 
 # colors
 GREEN = "\033[92m"
 RED = "\033[91m"
 YELLOW = "\033[93m"
 RESET = "\033[0m"
+
+USE_GITHUB_FORMAT = os.getenv("GITHUB_ANNOTATIONS") == "1"
 
 
 def run_test(file: Path, expect_success: bool, arch: str) -> bool:
@@ -35,14 +37,14 @@ def run_test(file: Path, expect_success: bool, arch: str) -> bool:
 
 
 def main():
-    for arch in target_archs:
+    for arch in TARGET_ARCHS:
         print(f"\n=== Architecture: {arch} ===")
 
         total = 0
         passed = 0
         failed = 0
 
-        for stage in stages:
+        for stage in STAGES:
             stage_dir = BASE / f"stage_{stage}"
             valid = stage_dir / "valid"
             invalid = stage_dir / "invalid"
@@ -69,9 +71,13 @@ def main():
         print(f"Total: {total}, Passed: {passed}, Failed: {failed}")
         if failed:
             print(f"{RED}Some tests failed.{RESET}")
+            if USE_GITHUB_FORMAT:
+                print(f"::error ::{failed} of {total} tests failed.")
             sys.exit(1)
         else:
             print(f"{GREEN}All tests passed.{RESET}")
+            if USE_GITHUB_FORMAT:
+                print("::notice ::All tests passed successfully.")
             sys.exit(0)
 
 

@@ -21,3 +21,5 @@ jobs:
 
       - name: Run custom test suits
         run: python3 run_tests.py
+        env:
+          GITHUB_ANNOTATIONS: "1"
