@@ -23,4 +23,4 @@ jobs:
         run: python3 run_tests.py
         env:
           GITHUB_ANNOTATIONS: "1"
-          DISABLE_COMPILE: "1"
+          COMPILE_DISABLED: "1"
