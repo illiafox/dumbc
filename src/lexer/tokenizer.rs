@@ -50,26 +50,109 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
             continue;
         }
 
-        let token = match ch {
-            '(' => Some(Token::LParen),
-            ')' => Some(Token::RParen),
-            '{' => Some(Token::LBrace),
-            '}' => Some(Token::RBrace),
-            ';' => Some(Token::Semicolon),
-            '-' => Some(Token::Minus),
-            '~' => Some(Token::Tilde),
-            '!' => Some(Token::Bang),
-            '+' => Some(Token::Plus),
-            '*' => Some(Token::Asterisk),
-            '/' => Some(Token::Slash),
-            _ => None,
-        };
+        match ch {
+            '(' => {
+                chars.next();
+                tokens.push(Token::LParen);
+            }
+            ')' => {
+                chars.next();
+                tokens.push(Token::RParen);
+            }
+            '{' => {
+                chars.next();
+                tokens.push(Token::LBrace);
+            }
+            '}' => {
+                chars.next();
+                tokens.push(Token::RBrace);
+            }
+            ';' => {
+                chars.next();
+                tokens.push(Token::Semicolon);
+            }
+            '-' => {
+                chars.next();
+                tokens.push(Token::Minus);
+            }
+            '~' => {
+                chars.next();
+                tokens.push(Token::Tilde);
+            }
+            '+' => {
+                chars.next();
+                tokens.push(Token::Plus);
+            }
+            '*' => {
+                chars.next();
+                tokens.push(Token::Asterisk);
+            }
+            '/' => {
+                chars.next();
+                tokens.push(Token::Slash);
+            }
 
-        if let Some(tok) = token {
-            tokens.push(tok);
-            chars.next();
-        } else {
-            return Err(format!("Unexpected character: '{}'", ch));
+            '>' => {
+                chars.next();
+                if chars.peek() == Some(&'=') {
+                    chars.next();
+                    tokens.push(Token::GreaterEqual);
+                } else {
+                    tokens.push(Token::Greater);
+                }
+            }
+
+            '<' => {
+                chars.next();
+                if chars.peek() == Some(&'=') {
+                    chars.next();
+                    tokens.push(Token::LessEqual);
+                } else {
+                    tokens.push(Token::Less);
+                }
+            }
+
+            '!' => {
+                chars.next();
+                if chars.peek() == Some(&'=') {
+                    chars.next();
+                    tokens.push(Token::BangEqual);
+                } else {
+                    tokens.push(Token::Bang);
+                }
+            }
+
+            '=' => {
+                chars.next();
+                if chars.peek() == Some(&'=') {
+                    chars.next();
+                    tokens.push(Token::EqualEqual);
+                } else {
+                    return Err("Unexpected character: '='".to_string());
+                }
+            }
+
+            '&' => {
+                chars.next();
+                if chars.peek() == Some(&'&') {
+                    chars.next();
+                    tokens.push(Token::AndAnd);
+                } else {
+                    return Err("Unexpected character: '&'".to_string());
+                }
+            }
+
+            '|' => {
+                chars.next();
+                if chars.peek() == Some(&'|') {
+                    chars.next();
+                    tokens.push(Token::OrOr);
+                } else {
+                    return Err("Unexpected character: '|'".to_string());
+                }
+            }
+
+            _ => return Err(format!("Unexpected character: '{}'", ch)),
         }
     }
 

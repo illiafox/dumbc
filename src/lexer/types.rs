@@ -1,18 +1,39 @@
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
-    KeywordInt,         // "int"
-    KeywordReturn,      // "return"
+    // Keywords
+    KeywordInt,    // "int"
+    KeywordReturn, // "return"
+
+    // Identifiers and literals
     Identifier(String), // e.g. "main"
     IntLiteral(i32),    // e.g. 123
-    LParen,             // (
-    RParen,             // )
-    LBrace,             // {
-    RBrace,             // }
-    Semicolon,          // ;
-    Minus,              // -
-    Tilde,              // ~
-    Bang,               // !
-    Plus,               // +
-    Asterisk,           // *
-    Slash,              // /
+
+    // Punctuation
+    LParen,    // (
+    RParen,    // )
+    LBrace,    // {
+    RBrace,    // }
+    Semicolon, // ;
+
+    // Unary operators
+    Minus, // -
+    Tilde, // ~
+    Bang,  // !
+
+    // Binary arithmetic operators
+    Plus,     // +
+    Asterisk, // *
+    Slash,    // /
+
+    // Logical operators
+    AndAnd, // &&
+    OrOr,   // ||
+
+    // Comparison operators
+    EqualEqual,   // ==
+    BangEqual,    // !=
+    Less,         // <
+    LessEqual,    // <=
+    Greater,      // >
+    GreaterEqual, // >=
 }

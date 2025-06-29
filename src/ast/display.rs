@@ -29,6 +29,17 @@ impl fmt::Display for BinaryOp {
             BinaryOp::Sub => "-",
             BinaryOp::Add => "+",
             BinaryOp::Divide => "/",
+
+            BinaryOp::Greater => ">",
+            BinaryOp::GreaterEqual => ">=",
+            BinaryOp::Less => "<",
+            BinaryOp::LessEqual => "<=",
+
+            BinaryOp::Equal => "==",
+            BinaryOp::NotEqual => "!=",
+
+            BinaryOp::LogicalAnd => "&&",
+            BinaryOp::LogicalOr => "||",
         };
         write!(f, "{}", op_str)
     }
