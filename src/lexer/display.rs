@@ -13,6 +13,9 @@ impl fmt::Display for Token {
             Token::LBrace => write!(f, "Symbol<{{>"),
             Token::RBrace => write!(f, "Symbol<}}>"),
             Token::Semicolon => write!(f, "Symbol<;>"),
+            Token::Minus => write!(f, "Symbol<->"),
+            Token::Tilde => write!(f, "Symbol<~>"),
+            Token::Bang => write!(f, "Symbol<!>"),
         }
     }
 }

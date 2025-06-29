@@ -1,4 +1,4 @@
-use crate::ast::{Expr, Function, Program, Stmt};
+use crate::ast::{Expr, Function, Program, Stmt, UnaryOp};
 use crate::lexer::Token;
 
 fn expect(tokens: &[Token], pos: &mut usize, expected: &Token) -> Result<(), String> {
@@ -27,6 +27,30 @@ fn expect_ident(tokens: &[Token], pos: &mut usize) -> Result<String, String> {
     }
 }
 
+fn parse_expr(tokens: &[Token], pos: &mut usize) -> Result<Expr, String> {
+    match tokens.get(*pos) {
+        Some(Token::IntLiteral(n)) => {
+            *pos += 1;
+            Ok(Expr::Const(*n))
+        }
+
+        Some(tok @ (Token::Minus | Token::Tilde | Token::Bang)) => {
+            let op = match tok {
+                Token::Minus => UnaryOp::Not,
+                Token::Tilde => UnaryOp::BitNot,
+                Token::Bang => UnaryOp::Neg,
+                _ => unreachable!(),
+            };
+            *pos += 1;
+
+            let inner = parse_expr(tokens, pos)?;
+            Ok(Expr::UnOp(op, Box::new(inner)))
+        }
+
+        other => Err(format!("expected expression, found {:?}", other)),
+    }
+}
+
 pub fn parse(tokens: &[Token]) -> Result<Program, String> {
     let mut pos = 0;
 
@@ -39,13 +63,7 @@ pub fn parse(tokens: &[Token]) -> Result<Program, String> {
     expect(tokens, &mut pos, &Token::LBrace)?;
     expect(tokens, &mut pos, &Token::KeywordReturn)?;
 
-    let value = match tokens.get(pos) {
-        Some(Token::IntLiteral(n)) => {
-            pos += 1;
-            Expr::Const(*n)
-        }
-        other => return Err(format!("expected int literal, found {:?}", other)),
-    };
+    let value = parse_expr(tokens, &mut pos)?;
 
     expect(tokens, &mut pos, &Token::Semicolon)?;
     expect(tokens, &mut pos, &Token::RBrace)?;
@@ -73,6 +91,7 @@ mod tests {
 
         match program.function.body {
             Stmt::Return(Expr::Const(n)) => assert_eq!(n, 42),
+            other => panic!("unexpected AST: {:?}", other),
         }
     }
 
@@ -82,6 +101,7 @@ mod tests {
         let ast = parse(&tokens).unwrap();
         match ast.function.body {
             Stmt::Return(Expr::Const(n)) => assert_eq!(n, 123456),
+            other => panic!("unexpected AST: {:?}", other),
         }
     }
 
@@ -109,6 +129,7 @@ mod tests {
         let ast = parse(&tokens).unwrap();
         match ast.function.body {
             Stmt::Return(Expr::Const(n)) => assert_eq!(n, 1),
+            other => panic!("unexpected AST: {:?}", other),
         }
     }
 
@@ -124,6 +145,7 @@ mod tests {
         let ast = parse(&tokens).unwrap();
         match ast.function.body {
             Stmt::Return(Expr::Const(n)) => assert_eq!(n, 5),
+            other => panic!("unexpected AST: {:?}", other),
         }
     }
 
@@ -133,6 +155,7 @@ mod tests {
         let ast = parse(&tokens).unwrap();
         match ast.function.body {
             Stmt::Return(Expr::Const(n)) => assert_eq!(n, i32::MAX),
+            other => panic!("unexpected AST: {:?}", other),
         }
     }
 

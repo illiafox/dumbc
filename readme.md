@@ -15,7 +15,7 @@ Built by following [Nora Sandler’s "Write a Compiler"](https://norasandler.com
 ## Implemented Parts
 
 - [x] Part 1: Compile `int main() { return <int>; }`
-- [ ] Part 2: Add unary operators (`-`, `~`, `!`)
+- [x] Part 2: Add unary operators (`-`, `~`, `!`)
 - [ ] Part 3: Add binary operators (`+`, `-`, etc.)
 - [ ] Part 4+: Control flow, variables, types...
 
