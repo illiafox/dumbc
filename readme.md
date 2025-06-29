@@ -29,9 +29,9 @@ Built by following [Nora Sandler’s "Write a Compiler"](https://norasandler.com
 
 ```bash
 cargo run -- path/to/file.c [--arch arm64]
+```
 
-
-- If --arch is not specified, the system architecture is used.
+- If `--arch` is not specified, the system architecture is used.
 - Only arm64 is supported now
 
 ### Example:
