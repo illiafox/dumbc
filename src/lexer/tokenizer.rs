@@ -59,6 +59,9 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
             '-' => Some(Token::Minus),
             '~' => Some(Token::Tilde),
             '!' => Some(Token::Bang),
+            '+' => Some(Token::Plus),
+            '*' => Some(Token::Asterisk),
+            '/' => Some(Token::Slash),
             _ => None,
         };
 

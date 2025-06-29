@@ -6,9 +6,18 @@ pub enum UnaryOp {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum BinaryOp {
+    Add,
+    Sub,
+    Multiply,
+    Divide,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     Const(i32),
     UnOp(UnaryOp, Box<Expr>),
+    BinOp(BinaryOp, Box<Expr>, Box<Expr>),
 }
 
 #[derive(Debug, Clone, PartialEq)]

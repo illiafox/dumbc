@@ -12,4 +12,7 @@ pub enum Token {
     Minus,              // -
     Tilde,              // ~
     Bang,               // !
+    Plus,               // +
+    Asterisk,           // *
+    Slash,              // /
 }
