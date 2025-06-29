@@ -50,20 +50,29 @@ def build_clang_command(source: Path, output: Path, arch: str, style: str) -> li
 def compile_and_run(source: Path, output: Path, arch: str) -> str:
     # Compile source to output binary
     clang_cmd = build_clang_command(source, output, arch, ARCH_STYLE)
-    subprocess.run(
-        clang_cmd,
-        check=True,
+
+    try:
+        subprocess.run(
+            clang_cmd,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except subprocess.CalledProcessError as e:
+        print(f"{RED}Compilation failed:{RESET}")
+        print(f"Command: {' '.join(clang_cmd)}")
+        print(f"stderr:\n{e.stderr.decode().strip()}")
+        raise
+
+    # Run the compiled binary
+    run_cmd = ["qemu-aarch64", str(output)] if CROSS_COMPILE else [str(output)]
+    result = subprocess.run(
+        run_cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        text=True
     )
-
-    # Run the compiled binary and capture output
-    if CROSS_COMPILE:
-        result = subprocess.run(["qemu-aarch64", str(output)], capture_output=True, text=True)
-    else:
-        result = subprocess.run([str(output)], capture_output=True, text=True)
     return result.stdout.strip(), result.returncode
-
 
 def compare_c_and_s_outputs(c_file: Path, s_file: Path, arch: str = "arm64") -> bool:
     if not c_file.exists() or not s_file.exists():
