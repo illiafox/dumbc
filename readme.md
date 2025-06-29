@@ -4,6 +4,8 @@
 
 Built by following [Nora Sandler’s "Write a Compiler"](https://norasandler.com/2017/11/29/Write-a-Compiler.html) series.
 
+[![Tests](https://github.com/illiafox/dumbc/actions/workflows/test.yaml/badge.svg)](https://github.com/illiafox/dumbc/actions/workflows/test.yaml)
+
 ---
 
 ## Supported Architectures
@@ -47,6 +49,14 @@ Example for macOS:
 clang -arch arm64 -o return_42_mac return_42.s
 ./return_42
 echo $?  # prints: 42
+```
+
+## Tests
+The `testsuite` submodule contains tests cases from [`nlsandler/write_a_c_compiler`](https://github.com/nlsandler/write_a_c_compiler). 
+
+To run them, use
+```bash
+python run_tests.py
 ```
 
 ## License
