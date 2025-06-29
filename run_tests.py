@@ -59,9 +59,9 @@ def compile_and_run(source: Path, output: Path, arch: str) -> str:
 
     # Run the compiled binary and capture output
     if CROSS_COMPILE:
-        result = subprocess.run(["qemu-aarch64", str(output)], ...)
+        result = subprocess.run(["qemu-aarch64", str(output)], capture_output=True, text=True)
     else:
-        result = subprocess.run([str(output)], ...)
+        result = subprocess.run([str(output)], capture_output=True, text=True)
     return result.stdout.strip(), result.returncode
 
 
