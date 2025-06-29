@@ -1,18 +1,6 @@
+use crate::lexer::Token;
 use std::iter::Peekable;
 use std::str::Chars;
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Token {
-    KeywordInt,         // "int"
-    KeywordReturn,      // "return"
-    Identifier(String), // e.g. "main"
-    IntLiteral(i32),    // e.g. 123
-    LParen,             // (
-    RParen,             // )
-    LBrace,             // {
-    RBrace,             // }
-    Semicolon,          // ;
-}
 
 fn is_identifier_char(c: &char) -> bool {
     c.is_alphabetic() || *c == '_'

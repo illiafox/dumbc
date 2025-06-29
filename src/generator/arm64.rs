@@ -1,7 +1,7 @@
 use crate::ast::{Expr, Program, Stmt};
 use std::fmt::Error;
 
-pub fn generate_arm64(program: &Program) -> Result<String, Error> {
+pub fn generate(program: &Program) -> Result<String, Error> {
     let function = &program.function;
     let mut output = String::new();
     use std::fmt::Write;

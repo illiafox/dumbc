@@ -1,12 +1,11 @@
-use crate::ast::parse;
-use crate::generator::generate_arm64;
 use crate::lexer::lex;
+use crate::parser::parse;
+use generator::arm64::generate;
 
 mod ast;
-mod ast_display;
 mod generator;
 mod lexer;
-mod lexer_display;
+mod parser;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = std::env::args().skip(1); // skip program name
@@ -33,7 +32,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let program = parse(&tokens).expect("Parser failed");
 
     println!("{}", program);
-    let asm = generate_arm64(&program)?;
+    let asm = generate(&program)?;
 
     let asm_path = input_path.replace(".c", ".s");
     std::fs::write(&asm_path, asm)?;

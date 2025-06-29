@@ -1,21 +1,5 @@
+use crate::ast::{Expr, Function, Program, Stmt};
 use crate::lexer::Token;
-
-pub enum Expr {
-    Const(i32),
-}
-
-pub enum Stmt {
-    Return(Expr),
-}
-
-pub struct Function {
-    pub name: String,
-    pub body: Stmt,
-}
-
-pub struct Program {
-    pub function: Function,
-}
 
 fn expect(tokens: &[Token], pos: &mut usize, expected: &Token) -> Result<(), String> {
     if tokens.get(*pos) == Some(expected) {
