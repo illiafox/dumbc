@@ -14,8 +14,7 @@ YELLOW = "\033[93m"
 RESET = "\033[0m"
 
 
-def run_test(file: Path, expect_success: bool, arch: str):
-    global any_failed
+def run_test(file: Path, expect_success: bool, arch: str) -> bool:
     print(f"Testing {file}...", end=" ")
     result = subprocess.run(
         ["cargo", "run", "--quiet", "--", str(file), "--arch", arch],
@@ -26,12 +25,13 @@ def run_test(file: Path, expect_success: bool, arch: str):
     if expect_success and not success:
         print(f"{RED}ERROR: should succeed{RESET}")
         print(f"{result.stderr.decode()}")
-        any_failed = True
+        return False
     elif not expect_success and success:
         print(f"{RED}ERROR: should fail{RESET}")
-        any_failed = True
+        return False
     else:
         print(f"{GREEN}PASS{RESET}")
+        return True
 
 
 def main():
