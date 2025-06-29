@@ -4,7 +4,7 @@ from pathlib import Path
 import os
 
 STAGES = [1, 2, 3]
-TARGET_ARCHS = ['arm64']
+TARGET_ARCHS = ['aarch64']
 BASE = Path("testsuite")
 
 # colors
@@ -15,18 +15,43 @@ RESET = "\033[0m"
 
 USE_GITHUB_FORMAT = os.getenv("GITHUB_ANNOTATIONS") == "1"
 
-COMPILE_DISABLED = os.getenv("COMPILE_DISABLED") == "1"
+import argparse
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--arch-style", choices=["mac", "gnu"], default="mac",
+                        help="Use 'mac' for `-arch arm64` (macOS), 'gnu' for `--target=aarch64-linux-gnu` (Linux)")
+    parser.add_argument("--disable-compile", action="store_true",
+                        help="Disable compilation and output comparison")
+    return parser.parse_args()
+args = parse_args()
+
+COMPILE_DISABLED = args.disable_compile
+ARCH_STYLE = args.arch_style
+
+def build_clang_command(source: Path, output: Path, arch: str, style: str) -> list[str]:
+    cmd = ["clang"]
+    if style == "mac":
+        cmd += ["-arch", "arm64"]
+    elif style == "gnu":  # assume GNU
+        cmd += [f"--target={arch}-linux-gnu"]
+    else:
+        raise ValueError(f"Unsupported arch style: {style!r}. Expected 'mac' or 'gnu'.")
+    cmd += ["-o", str(output), str(source)]
+    return cmd
 
 
 def compile_and_run(source: Path, output: Path, arch: str) -> str:
-    # Compile
+    # Compile source to output binary
+    clang_cmd = build_clang_command(source, output, arch, ARCH_STYLE)
     subprocess.run(
-        ["clang", "-arch", arch, "-o", str(output), str(source)],
+        clang_cmd,
         check=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    # Run and capture output
+
+    # Run the compiled binary and capture output
     result = subprocess.run([str(output)], capture_output=True, text=True)
     return result.stdout.strip(), result.returncode
 

@@ -11,15 +11,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = std::env::args().skip(1); // skip program name
     let input_path = args.next().expect("Usage: dumbc <file.c> [--arch arch]");
 
-    let mut arch = match std::env::consts::ARCH {
-        "aarch64" => "arm64".to_string(),
-        other => other.to_string(),
-    };
+    let mut arch = std::env::consts::ARCH.to_string();
 
     while let Some(arg) = args.next() {
         if arg == "--arch" {
             arch = args.next().expect("Expected architecture after --arch");
         }
+    }
+
+    if arch == "aarch64" {
+        arch = "arm64".to_string();
     }
 
     if arch != "arm64" {

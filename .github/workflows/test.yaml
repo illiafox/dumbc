@@ -1,5 +1,8 @@
 name: Tests
-on: [push]
+
+on:
+  push:
+  pull_request:
 
 env:
   CARGO_TERM_COLOR: always
@@ -16,11 +19,15 @@ jobs:
       - name: Install Rust
         run: rustup update stable && rustup default stable
 
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang gcc-aarch64-linux-gnu python3 python3-pip cargo
+
       - name: Run Rust unit tests
         run: cargo test --verbose
 
       - name: Run custom test suits
-        run: python3 run_tests.py
+        run: python3 run_tests.py --arch-style=gnu
         env:
           GITHUB_ANNOTATIONS: "1"
-          COMPILE_DISABLED: "1"
