@@ -115,6 +115,17 @@ fn generate_expr(g: &mut Generator, expr: &Expr) -> Result<(), Box<dyn Error>> {
                 BinaryOp::Sub => writeln!(g.output, "sub\tw0, w1, w0")?,
                 BinaryOp::Multiply => writeln!(g.output, "mul\tw0, w1, w0")?,
                 BinaryOp::Divide => writeln!(g.output, "sdiv\tw0, w1, w0")?,
+                BinaryOp::And => writeln!(g.output, "and\tw0, w1, w0")?,
+                BinaryOp::Or => writeln!(g.output, "orr\tw0, w1, w0")?,
+                BinaryOp::Xor => writeln!(g.output, "eor\tw0, w1, w0")?,
+                BinaryOp::ShiftLeft => writeln!(g.output, "lsl\tw0, w1, w0")?,
+                BinaryOp::ShiftRight => writeln!(g.output, "lsr\tw0, w1, w0")?,
+
+                BinaryOp::Modulo => {
+                    // USES w2 register
+                    writeln!(g.output, "udiv\tw2, w1, w0")?; // w2 = lhs / rhs
+                    writeln!(g.output, "msub\tw0, w2, w0, w1")?; // w0 = lhs - w2 * rhs
+                }
 
                 BinaryOp::Equal => {
                     writeln!(g.output, "cmp\tw1, w0")?;

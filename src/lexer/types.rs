@@ -25,6 +25,21 @@ pub enum Token {
     Asterisk, // *
     Slash,    // /
 
+    And,      // &
+    AndEqual, // &=
+    Or,       // |
+    OrEqual,  // |=
+    Xor,      // ^
+    XorEqual, // ^=
+
+    ShiftLeft,       // <<
+    ShiftLeftEqual,  // <<=
+    ShiftRight,      // >>
+    ShiftRightEqual, // >>=
+
+    Modulo,      // %
+    ModuloEqual, // %=
+
     // Logical operators
     AndAnd, // &&
     OrOr,   // ||
@@ -36,6 +51,16 @@ pub enum Token {
     LessEqual,    // <=
     Greater,      // >
     GreaterEqual, // >=
+
+    PlusEqual,     // +=
+    MinusEqual,    // -=
+    AsteriskEqual, // *=
+    SlashEqual,    // /=
+
+    Comma, // ,
+
+    PlusPlus,   // ++
+    MinusMinus, // --
 
     Equal,
 }
