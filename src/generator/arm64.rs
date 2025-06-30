@@ -190,6 +190,11 @@ fn generate_stmt(g: &mut Generator, stmt: &Stmt) -> Result<(), Box<dyn Error>> {
             }
             Ok(())
         }
+        Stmt::Bingus(expr) => {
+            generate_expr(g, expr)?;
+            writeln!(g.output, "bl\tbingus")?;
+            Ok(())
+        }
     }
 }
 
@@ -203,21 +208,37 @@ pub fn generate(program: &Program, platform: &str) -> Result<String, Box<dyn std
         _ => return Err(format!("Unsupported platform {platform}").into()),
     };
 
-    writeln!(output, ".global {}main", prefix)?;
-    writeln!(output, "{}main:", prefix)?;
-
     let free_use_registers = vec![
         "w19", "w20", "w21", "w22", "w23", "w24", "w25", "w26", "w27", "w28",
     ];
 
     let mut dry_allocator = Allocator::new(free_use_registers.clone());
 
+    let mut bingus_used = false;
+
     for stmt in &function.body {
+        if let Stmt::Bingus(_) = stmt {
+            bingus_used = true;
+        }
         if let Stmt::Declare(name, _) = stmt {
             dry_allocator.allocate(name.clone(), 4);
         }
     }
     let stack_size = ((dry_allocator.total_stack_size() + 15) / 16) * 16; // alignment
+
+    if bingus_used {
+        match platform {
+            "macos" => {
+                let bingus = include_bytes!("bingus_arm64_macos.s");
+                let bingus_s = std::str::from_utf8(bingus).expect("bingus.s not UTF-8");
+                output.write_str(bingus_s)?;
+            }
+            _ => return Err(format!("bingus is not supported on platform {platform}").into()),
+        }
+    }
+
+    writeln!(output, ".global {}main", prefix)?;
+    writeln!(output, "{}main:", prefix)?;
 
     // function prologue
     writeln!(output, "stp\tx29, x30, [sp, #-16]!")?;

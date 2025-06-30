@@ -62,6 +62,29 @@ clang -arch arm64 -o return_42_mac return_42.s
 echo $?  # prints: 42
 ```
 
+## Non-standard features
+
+### `bingus` keyword
+`bingus(arg)` is a built-in pseudo-function, which evaluates expression and prints it into stdout. Available on macOS platform
+
+Until functions are supported, it is the only way to print something (e.g. for debug purposes)
+
+Example:
+```c
+int main() {
+    int a = 10, b = 8;
+    bingus(a);
+    bingus(a * b);
+    bingus(b - 10);
+}
+```
+Output:
+```
+10
+80
+-2
+```
+
 ## Tests
 The `testsuite` submodule contains tests cases from [`nlsandler/write_a_c_compiler`](https://github.com/nlsandler/write_a_c_compiler). 
 

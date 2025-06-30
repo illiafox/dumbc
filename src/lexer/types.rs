@@ -63,4 +63,6 @@ pub enum Token {
     MinusMinus, // --
 
     Equal,
+
+    KeywordBingus,
 }

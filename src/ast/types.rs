@@ -46,6 +46,8 @@ pub enum Stmt {
     Return(Expr),
     Declare(String, Option<Expr>),
     Expr(Expr),
+
+    Bingus(Expr), // print expr int val
 }
 
 #[derive(Debug, Clone, PartialEq)]

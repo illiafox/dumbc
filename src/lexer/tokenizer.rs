@@ -108,6 +108,7 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
         if ch.is_alphabetic() || ch == '_' {
             let ident = consume_until(&mut chars, is_identifier_char);
             match ident.as_str() {
+                "bingus" => tokens.push(Token::KeywordBingus),
                 "int" => tokens.push(Token::KeywordInt),
                 "return" => tokens.push(Token::KeywordReturn),
                 _ => tokens.push(Token::Identifier(ident)),
