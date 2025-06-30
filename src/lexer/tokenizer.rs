@@ -23,6 +23,78 @@ where
     ident
 }
 
+fn skip_comment_if_present(chars: &mut Peekable<Chars>) -> Result<bool, String> {
+    if chars.peek() != Some(&'/') {
+        return Ok(false);
+    }
+
+    let mut lookahead = chars.clone();
+    lookahead.next();
+    if let Some(&next_ch) = lookahead.peek() {
+        match next_ch {
+            '/' => {
+                // Line comment
+                chars.next(); // consume '/'
+                chars.next(); // consume second '/'
+                while let Some(&ch) = chars.peek() {
+                    if ch == '\n' {
+                        break;
+                    }
+                    chars.next();
+                }
+                return Ok(true);
+            }
+            '*' => {
+                // Block comment
+                chars.next(); // consume '/'
+                chars.next(); // consume '*'
+                loop {
+                    match chars.next() {
+                        Some('*') => {
+                            if chars.peek() == Some(&'/') {
+                                chars.next(); // consume '/'
+                                break;
+                            }
+                        }
+                        Some(_) => continue,
+                        None => return Err("Unterminated block comment".into()),
+                    }
+                }
+                return Ok(true);
+            }
+            _ => {}
+        }
+    }
+
+    Ok(false)
+}
+
+fn match_operator(chars: &mut Peekable<Chars>, matches: &[(&str, Token)]) -> Option<Token> {
+    for (symbol, token) in matches {
+        let mut lookahead = chars.clone();
+        let mut matched = true;
+
+        for expected_ch in symbol.chars() {
+            match lookahead.next() {
+                Some(actual_ch) if actual_ch == expected_ch => continue,
+                _ => {
+                    matched = false;
+                    break;
+                }
+            }
+        }
+
+        if matched {
+            for _ in 0..symbol.len() {
+                chars.next(); // consume the matched characters
+            }
+            return Some(token.clone());
+        }
+    }
+
+    None
+}
+
 pub fn lex(input: &str) -> Result<Vec<Token>, String> {
     let mut tokens: Vec<Token> = Vec::new();
 
@@ -50,147 +122,62 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
             continue;
         }
 
-        // skip line comments: //...
-        if ch == '/' {
-            let mut lookahead = chars.clone();
-            lookahead.next();
-            if let Some(&next_ch) = lookahead.peek() {
-                if next_ch == '/' {
-                    // consume both slashes
-                    chars.next();
-                    chars.next();
-                    // skip until newline or end
-                    while let Some(&next_ch) = chars.peek() {
-                        if next_ch == '\n' {
-                            break;
-                        }
-                        chars.next();
-                    }
-                    continue;
-                } else if next_ch == '*' {
-                    // skip block comment: /* ... */
-                    chars.next(); // consume '/'
-                    chars.next(); // consume '*'
-                    loop {
-                        match chars.next() {
-                            Some('*') => {
-                                if chars.peek() == Some(&'/') {
-                                    chars.next(); // consume '/'
-                                    break;
-                                }
-                            }
-                            Some(_) => continue,
-                            None => return Err("Unterminated block comment".into()),
-                        }
-                    }
-                    continue;
-                }
-            }
+        if skip_comment_if_present(&mut chars)? {
+            continue;
         }
 
-        match ch {
-            '(' => {
-                chars.next();
-                tokens.push(Token::LParen);
-            }
-            ')' => {
-                chars.next();
-                tokens.push(Token::RParen);
-            }
-            '{' => {
-                chars.next();
-                tokens.push(Token::LBrace);
-            }
-            '}' => {
-                chars.next();
-                tokens.push(Token::RBrace);
-            }
-            ';' => {
-                chars.next();
-                tokens.push(Token::Semicolon);
-            }
-            '-' => {
-                chars.next();
-                tokens.push(Token::Minus);
-            }
-            '~' => {
-                chars.next();
-                tokens.push(Token::Tilde);
-            }
-            '+' => {
-                chars.next();
-                tokens.push(Token::Plus);
-            }
-            '*' => {
-                chars.next();
-                tokens.push(Token::Asterisk);
-            }
-            '/' => {
-                chars.next();
-                tokens.push(Token::Slash);
-            }
-
-            '>' => {
-                chars.next();
-                if chars.peek() == Some(&'=') {
-                    chars.next();
-                    tokens.push(Token::GreaterEqual);
-                } else {
-                    tokens.push(Token::Greater);
-                }
-            }
-
-            '<' => {
-                chars.next();
-                if chars.peek() == Some(&'=') {
-                    chars.next();
-                    tokens.push(Token::LessEqual);
-                } else {
-                    tokens.push(Token::Less);
-                }
-            }
-
-            '!' => {
-                chars.next();
-                if chars.peek() == Some(&'=') {
-                    chars.next();
-                    tokens.push(Token::BangEqual);
-                } else {
-                    tokens.push(Token::Bang);
-                }
-            }
-
-            '=' => {
-                chars.next();
-                if chars.peek() == Some(&'=') {
-                    chars.next();
-                    tokens.push(Token::EqualEqual);
-                } else {
-                    tokens.push(Token::Equal);
-                }
-            }
-
-            '&' => {
-                chars.next();
-                if chars.peek() == Some(&'&') {
-                    chars.next();
-                    tokens.push(Token::AndAnd);
-                } else {
-                    return Err("Unexpected character: '&'".to_string());
-                }
-            }
-
-            '|' => {
-                chars.next();
-                if chars.peek() == Some(&'|') {
-                    chars.next();
-                    tokens.push(Token::OrOr);
-                } else {
-                    return Err("Unexpected character: '|'".to_string());
-                }
-            }
-
-            _ => return Err(format!("Unexpected character: '{}'", ch)),
+        if let Some(token) = match_operator(
+            &mut chars,
+            &[
+                (">>=", Token::ShiftRightEqual),
+                ("<<=", Token::ShiftLeftEqual),
+                ("++", Token::PlusPlus),
+                ("--", Token::MinusMinus),
+                ("+=", Token::PlusEqual),
+                ("-=", Token::MinusEqual),
+                ("/=", Token::SlashEqual),
+                ("*=", Token::AsteriskEqual),
+                ("==", Token::EqualEqual),
+                ("!=", Token::BangEqual),
+                (">=", Token::GreaterEqual),
+                ("<=", Token::LessEqual),
+                ("&&", Token::AndAnd),
+                ("||", Token::OrOr),
+                ("%", Token::Modulo),
+                ("%=", Token::ModuloEqual),
+                ("&", Token::And),
+                ("&=", Token::AndEqual),
+                ("|", Token::Or),
+                ("|=", Token::OrEqual),
+                ("^", Token::Xor),
+                ("^=", Token::XorEqual),
+                (">>", Token::ShiftRight),
+                ("<<", Token::ShiftLeft),
+                ("+", Token::Plus),
+                ("-", Token::Minus),
+                ("*", Token::Asterisk),
+                ("/", Token::Slash),
+                ("=", Token::Equal),
+                ("!", Token::Bang),
+                ("~", Token::Tilde),
+                (">", Token::Greater),
+                ("<", Token::Less),
+                (",", Token::Comma),
+                (";", Token::Semicolon),
+                ("(", Token::LParen),
+                (")", Token::RParen),
+                ("{", Token::LBrace),
+                ("}", Token::RBrace),
+                ("%", Token::Modulo),
+                ("&", Token::And),
+                ("|", Token::Or),
+                ("^", Token::Or),
+            ],
+        ) {
+            tokens.push(token);
+            continue;
+        } else {
+            return Err(format!("Unrecognized character '{}'", ch));
         }
     }
 

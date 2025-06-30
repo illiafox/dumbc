@@ -23,6 +23,13 @@ pub enum BinaryOp {
 
     LogicalAnd,
     LogicalOr,
+
+    Or,
+    And,
+    Xor,
+    ShiftRight,
+    ShiftLeft,
+    Modulo,
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -3,38 +3,6 @@ use std::fmt;
 
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Token::KeywordInt => write!(f, "Keyword<int>"),
-            Token::KeywordReturn => write!(f, "Keyword<return>"),
-
-            Token::Identifier(name) => write!(f, "Identifier<{}>", name),
-            Token::IntLiteral(n) => write!(f, "IntLiteral<{}>", n),
-
-            Token::LParen => write!(f, "Symbol<(>"),
-            Token::RParen => write!(f, "Symbol<)>"),
-            Token::LBrace => write!(f, "Symbol<{{>"),
-            Token::RBrace => write!(f, "Symbol<}}>"),
-            Token::Semicolon => write!(f, "Symbol<;>"),
-
-            Token::Minus => write!(f, "Symbol<->"),
-            Token::Tilde => write!(f, "Symbol<~>"),
-            Token::Bang => write!(f, "Symbol<!>"),
-
-            Token::Plus => write!(f, "Symbol<+>"),
-            Token::Asterisk => write!(f, "Symbol<*>"),
-            Token::Slash => write!(f, "Symbol</>"),
-
-            Token::AndAnd => write!(f, "Symbol<&&>"),
-            Token::OrOr => write!(f, "Symbol<||>"),
-
-            Token::EqualEqual => write!(f, "Symbol< == >"),
-            Token::Equal => write!(f, "Symbol<=>"),
-
-            Token::BangEqual => write!(f, "Symbol< != >"),
-            Token::Less => write!(f, "Symbol< < >"),
-            Token::LessEqual => write!(f, "Symbol< <= >"),
-            Token::Greater => write!(f, "Symbol< > >"),
-            Token::GreaterEqual => write!(f, "Symbol< >= >"),
-        }
+        format!("{:?}", self).fmt(f)
     }
 }

@@ -1,15 +1,18 @@
-use crate::ast::Expr::BinOp;
+use crate::ast::Expr::{Assign, BinOp, Const, Var};
 use crate::ast::{BinaryOp, Expr, Stmt, UnaryOp};
 use crate::lexer::Token;
 use crate::parser::parse::{expect, expect_ident};
+
 // From highest to lowest (tighter binding first):
 // parse_factor – literals, parentheses, unary operators
 // parse_term – *, /
 // parse_additive_exp – +, -
+// parse_shift_exp >> <<
 // parse_relational_exp – <, >, <=, >=
 // parse_equality_exp – ==, !=
 // parse_logical_and_exp – &&
-// parse_expr – || (top-level)
+// parse_expr – ||, ++, --, = (assignment)
+// parse_statements – return, int <var>, int <var> = <expr>, commas
 
 // helper
 fn parse_binary_chain(
@@ -37,7 +40,7 @@ fn parse_factor(tokens: &[Token], pos: &mut usize) -> Result<Expr, String> {
     match tokens.get(*pos) {
         Some(Token::IntLiteral(n)) => {
             *pos += 1;
-            Ok(Expr::Const(*n))
+            Ok(Const(*n))
         }
 
         Some(Token::LParen) => {
@@ -79,6 +82,7 @@ fn parse_term(tokens: &[Token], pos: &mut usize) -> Result<Expr, String> {
         let op = match op_token {
             Token::Asterisk => BinaryOp::Multiply,
             Token::Slash => BinaryOp::Divide,
+            Token::Modulo => BinaryOp::Modulo,
             _ => break, // not a term-level operator, stop looping
         };
 
@@ -98,8 +102,16 @@ fn parse_additive_exp(tokens: &[Token], pos: &mut usize) -> Result<Expr, String>
     })
 }
 
-fn parse_relational_exp(tokens: &[Token], pos: &mut usize) -> Result<Expr, String> {
+fn parse_shift_exp(tokens: &[Token], pos: &mut usize) -> Result<Expr, String> {
     parse_binary_chain(tokens, pos, parse_additive_exp, |tok| match tok {
+        Token::ShiftRight => Some(BinaryOp::ShiftRight),
+        Token::ShiftLeft => Some(BinaryOp::ShiftLeft),
+        _ => None,
+    })
+}
+
+fn parse_relational_exp(tokens: &[Token], pos: &mut usize) -> Result<Expr, String> {
+    parse_binary_chain(tokens, pos, parse_shift_exp, |tok| match tok {
         Token::Less => Some(BinaryOp::Less),
         Token::LessEqual => Some(BinaryOp::LessEqual),
         Token::Greater => Some(BinaryOp::Greater),
@@ -116,20 +128,86 @@ fn parse_equality_exp(tokens: &[Token], pos: &mut usize) -> Result<Expr, String>
     })
 }
 
-fn parse_logical_and_exp(tokens: &[Token], pos: &mut usize) -> Result<Expr, String> {
+fn parse_bitwise_and_exp(tokens: &[Token], pos: &mut usize) -> Result<Expr, String> {
     parse_binary_chain(tokens, pos, parse_equality_exp, |tok| match tok {
+        Token::And => Some(BinaryOp::And),
+        _ => None,
+    })
+}
+
+fn parse_bitwise_xor_exp(tokens: &[Token], pos: &mut usize) -> Result<Expr, String> {
+    parse_binary_chain(tokens, pos, parse_bitwise_and_exp, |tok| match tok {
+        Token::Xor => Some(BinaryOp::Xor),
+        _ => None,
+    })
+}
+
+fn parse_bitwise_or_exp(tokens: &[Token], pos: &mut usize) -> Result<Expr, String> {
+    parse_binary_chain(tokens, pos, parse_bitwise_xor_exp, |tok| match tok {
+        Token::Or => Some(BinaryOp::Or),
+        _ => None,
+    })
+}
+
+fn parse_logical_and_exp(tokens: &[Token], pos: &mut usize) -> Result<Expr, String> {
+    parse_binary_chain(tokens, pos, parse_bitwise_or_exp, |tok| match tok {
         Token::AndAnd => Some(BinaryOp::LogicalAnd),
         _ => None,
     })
 }
 
+fn assign_bin_op(op: BinaryOp, var_name: String, expr: Expr) -> Expr {
+    Assign(
+        var_name.clone(),
+        Box::new(BinOp(op, Box::new(Var(var_name.clone())), Box::new(expr))),
+    )
+}
+
+fn token_to_binop(token: &Token) -> Option<BinaryOp> {
+    match token {
+        Token::PlusEqual => Some(BinaryOp::Add),
+        Token::MinusEqual => Some(BinaryOp::Add),
+        Token::AsteriskEqual => Some(BinaryOp::Multiply),
+        Token::SlashEqual => Some(BinaryOp::Divide),
+        Token::ModuloEqual => Some(BinaryOp::Modulo),
+        Token::OrEqual => Some(BinaryOp::Or),
+        Token::AndEqual => Some(BinaryOp::And),
+        Token::XorEqual => Some(BinaryOp::Xor),
+        Token::ShiftLeftEqual => Some(BinaryOp::ShiftLeft),
+        Token::ShiftRightEqual => Some(BinaryOp::ShiftRight),
+        _ => None,
+    }
+}
+
 pub fn parse_expr(tokens: &[Token], pos: &mut usize) -> Result<Expr, String> {
     if let Some(Token::Identifier(name)) = tokens.get(*pos) {
-        if tokens.get(*pos + 1) == Some(&Token::Equal) {
-            let name = name.clone();
-            *pos += 2;
-            let rhs = parse_expr(tokens, pos)?;
-            return Ok(Expr::Assign(name, Box::new(rhs)));
+        match tokens.get(*pos + 1) {
+            Some(&Token::Equal) => {
+                let name = name.clone();
+                *pos += 2;
+                let rhs = parse_expr(tokens, pos)?;
+                return Ok(Assign(name, Box::new(rhs)));
+            }
+            Some(&Token::PlusPlus) => {
+                *pos += 2;
+                return Ok(assign_bin_op(BinaryOp::Add, name.clone(), Const(1)));
+            }
+            Some(&Token::MinusMinus) => {
+                let name = name.clone();
+                *pos += 2;
+                return Ok(assign_bin_op(BinaryOp::Sub, name.clone(), Const(1)));
+            }
+
+            Some(token) => {
+                if let Some(bin_op) = token_to_binop(token) {
+                    let name = name.clone();
+                    *pos += 2;
+                    let rhs = parse_expr(tokens, pos)?;
+                    return Ok(assign_bin_op(bin_op, name.clone(), rhs));
+                }
+            }
+
+            _ => {}
         }
     }
 
@@ -139,30 +217,57 @@ pub fn parse_expr(tokens: &[Token], pos: &mut usize) -> Result<Expr, String> {
     })
 }
 
-pub fn parse_statement(tokens: &[Token], pos: &mut usize) -> Result<Stmt, String> {
+fn parse_declaration_list(tokens: &[Token], pos: &mut usize) -> Result<Vec<Stmt>, String> {
+    let mut decls = Vec::new();
+
+    loop {
+        let name = expect_ident(tokens, pos)?;
+        let expr = if tokens.get(*pos) == Some(&Token::Equal) {
+            *pos += 1;
+            Some(parse_expr(tokens, pos)?)
+        } else {
+            None
+        };
+        decls.push(Stmt::Declare(name, expr));
+
+        match tokens.get(*pos) {
+            Some(Token::Comma) => {
+                *pos += 1;
+                continue;
+            }
+            Some(Token::Semicolon) => {
+                *pos += 1;
+                break;
+            }
+            Some(other) => {
+                return Err(format!("Unexpected token in declaration list: {:?}", other));
+            }
+            None => {
+                return Err("Unexpected end of input in declaration list".into());
+            }
+        }
+    }
+
+    Ok(decls)
+}
+
+pub fn parse_statements(tokens: &[Token], pos: &mut usize) -> Result<Vec<Stmt>, String> {
     match tokens.get(*pos) {
         Some(Token::KeywordReturn) => {
             *pos += 1;
             let expr = parse_expr(tokens, pos)?;
             expect(tokens, pos, &Token::Semicolon)?;
-            Ok(Stmt::Return(expr))
+            Ok(vec![Stmt::Return(expr)])
         }
         Some(Token::KeywordInt) => {
             *pos += 1;
-            let name = expect_ident(tokens, pos)?;
-            let expr = if tokens.get(*pos) == Some(&Token::Equal) {
-                *pos += 1;
-                Some(parse_expr(tokens, pos)?)
-            } else {
-                None
-            };
-            expect(tokens, pos, &Token::Semicolon)?;
-            Ok(Stmt::Declare(name, expr))
+            let decls = parse_declaration_list(tokens, pos)?;
+            Ok(decls)
         }
         _ => {
             let expr = parse_expr(tokens, pos)?;
             expect(tokens, pos, &Token::Semicolon)?;
-            Ok(Stmt::Expr(expr))
+            Ok(vec![Stmt::Expr(expr)])
         }
     }
 }

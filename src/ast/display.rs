@@ -42,6 +42,15 @@ impl fmt::Display for BinaryOp {
 
             BinaryOp::LogicalAnd => "&&",
             BinaryOp::LogicalOr => "||",
+
+            BinaryOp::And => "&",
+            BinaryOp::Or => "|",
+            BinaryOp::Xor => "^",
+
+            BinaryOp::ShiftLeft => "<<",
+            BinaryOp::ShiftRight => ">>",
+
+            BinaryOp::Modulo => "%",
         };
         write!(f, "{}", op_str)
     }
