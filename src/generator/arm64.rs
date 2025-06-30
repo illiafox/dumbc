@@ -1,146 +1,251 @@
-use crate::ast::Expr::BinOp;
+use crate::ast::Expr::{Assign, BinOp};
 use crate::ast::{BinaryOp, Expr, Program, Stmt, UnaryOp};
+use crate::generator::allocator::{Allocator, Variable};
 use crate::generator::label::LabelGenerator;
+use std::error::Error;
 use std::fmt;
 use std::fmt::Write;
 
-pub fn generate_expr(
-    output: &mut dyn Write,
-    expr: &Expr,
-    labels: &mut LabelGenerator,
-) -> fmt::Result {
+impl Variable {
+    pub fn emit_store_in_w0(&self, output: &mut dyn Write) -> fmt::Result {
+        match self {
+            Variable::Register(reg) => {
+                writeln!(output, "mov\tw0, {}", reg)
+            }
+            Variable::Stack(offset) => {
+                writeln!(output, "ldr\tw0, [x29, #{:+}]", offset)
+            }
+        }
+    }
+
+    pub fn emit_store_from_w0(&self, output: &mut dyn Write) -> fmt::Result {
+        match self {
+            Variable::Register(reg) => {
+                writeln!(output, "mov\t{}, w0", reg)
+            }
+            Variable::Stack(offset) => {
+                writeln!(output, "str\tw0, [x29, #{:+}]", offset)
+            }
+        }
+    }
+}
+
+struct Generator<'a> {
+    output: &'a mut dyn Write,
+    labels: &'a mut LabelGenerator,
+    allocator: &'a mut Allocator,
+    epilogue: String,
+}
+fn generate_expr(g: &mut Generator, expr: &Expr) -> Result<(), Box<dyn Error>> {
     match expr {
         Expr::Const(n) => {
-            writeln!(output, "mov\tw0, #{}", n)?;
+            writeln!(g.output, "mov\tw0, #{}", n)?;
+        }
+        Expr::Var(name) => {
+            let var = g
+                .allocator
+                .get(name)
+                .ok_or_else(|| format!("variable {} not found", name))?;
+            var.emit_store_in_w0(g.output)?
         }
         Expr::UnOp(op, inner) => {
-            generate_expr(output, inner, labels)?; // recursively evaluate into w0
+            generate_expr(g, inner)?; // recursively evaluate into w0
 
             match op {
-                UnaryOp::Neg => writeln!(output, "neg\tw0, w0")?,
-                UnaryOp::BitNot => writeln!(output, "mvn\tw0, w0")?,
+                UnaryOp::Neg => writeln!(g.output, "neg\tw0, w0")?,
+                UnaryOp::BitNot => writeln!(g.output, "mvn\tw0, w0")?,
                 UnaryOp::Not => {
                     // sets condition flags
-                    writeln!(output, "cmp\tw0, #0")?;
+                    writeln!(g.output, "cmp\tw0, #0")?;
                     // clear w0
-                    writeln!(output, "mov\tw0, #0")?;
+                    writeln!(g.output, "mov\tw0, #0")?;
                     // set w0 = 1 if w0 was equal to 0
-                    writeln!(output, "cset\tw0, eq")?;
+                    writeln!(g.output, "cset\tw0, eq")?;
                 }
             }
         }
         BinOp(BinaryOp::LogicalOr, lhs, rhs) => {
-            let true_clause = labels.next("or_true");
-            let end_clause = labels.next("or_end");
+            let true_clause = g.labels.next("or_true");
+            let end_clause = g.labels.next("or_end");
 
-            generate_expr(output, lhs, labels)?; // result in w0
+            generate_expr(g, lhs)?; // result in w0
 
-            writeln!(output, "cmp\tw0, #0")?; // check if lhs is true (non-zero)
-            writeln!(output, "b.ne\t{}", true_clause)?; // if lhs != 0, short-circuit: result is true
+            writeln!(g.output, "cmp\tw0, #0")?; // check if lhs is true (non-zero)
+            writeln!(g.output, "b.ne\t{}", true_clause)?; // if lhs != 0, short-circuit: result is true
 
-            generate_expr(output, rhs, labels)?; // result in w0
-            writeln!(output, "cmp\tw0, #0")?; // check if rhs is true (non-zero)
-            writeln!(output, "cset\tw0, ne")?; // w0 = 1 if rhs != 0, else 0
-            writeln!(output, "b\t{}", end_clause)?;
+            generate_expr(g, rhs)?; // result in w0
+            writeln!(g.output, "cmp\tw0, #0")?; // check if rhs is true (non-zero)
+            writeln!(g.output, "cset\tw0, ne")?; // w0 = 1 if rhs != 0, else 0
+            writeln!(g.output, "b\t{}", end_clause)?;
 
-            writeln!(output, "{}:", true_clause)?;
-            writeln!(output, "mov\tw0, #1")?; // result is 1
-            writeln!(output, "{}:", end_clause)?;
+            writeln!(g.output, "{}:", true_clause)?;
+            writeln!(g.output, "mov\tw0, #1")?; // result is 1
+            writeln!(g.output, "{}:", end_clause)?;
         }
         BinOp(BinaryOp::LogicalAnd, lhs, rhs) => {
-            let false_clause = labels.next("and_false");
-            let end_clause = labels.next("and_end");
+            let false_clause = g.labels.next("and_false");
+            let end_clause = g.labels.next("and_end");
 
-            generate_expr(output, lhs, labels)?; // result in w0
+            generate_expr(g, lhs)?; // result in w0
 
-            writeln!(output, "cmp\tw0, #0")?; // check if lhs is false (zero)
-            writeln!(output, "b.eq\t{}", false_clause)?; // if lhs == 0, short-circuit: result is false
+            writeln!(g.output, "cmp\tw0, #0")?; // check if lhs is false (zero)
+            writeln!(g.output, "b.eq\t{}", false_clause)?; // if lhs == 0, short-circuit: result is false
 
-            generate_expr(output, rhs, labels)?; // result in w0
-            writeln!(output, "cmp\tw0, #0")?; // check if rhs is true (non-zero)
-            writeln!(output, "cset\tw0, ne")?; // w0 = 1 if rhs != 0, else 0
-            writeln!(output, "b\t{}", end_clause)?;
+            generate_expr(g, rhs)?; // result in w0
+            writeln!(g.output, "cmp\tw0, #0")?; // check if rhs is true (non-zero)
+            writeln!(g.output, "cset\tw0, ne")?; // w0 = 1 if rhs != 0, else 0
+            writeln!(g.output, "b\t{}", end_clause)?;
 
-            writeln!(output, "{}:", false_clause)?;
-            writeln!(output, "mov\tw0, #0")?; // result is 0
-            writeln!(output, "{}:", end_clause)?;
+            writeln!(g.output, "{}:", false_clause)?;
+            writeln!(g.output, "mov\tw0, #0")?; // result is 0
+            writeln!(g.output, "{}:", end_clause)?;
         }
         BinOp(op, lhs, rhs) => {
-            generate_expr(output, lhs, labels)?;
-            writeln!(output, "str\tw0, [sp, #-16]!")?; // push w0 on stack
+            generate_expr(g, lhs)?;
+            writeln!(g.output, "str\tw0, [sp, #-16]!")?; // push lhs (keep 16-byte align)
 
-            generate_expr(output, rhs, labels)?;
-            writeln!(output, "ldr\tw1, [sp], #16")?; // pop previous w0 result into w1
+            generate_expr(g, rhs)?;
+            writeln!(g.output, "ldr\tw1, [sp], #16")?; /* lhs → w1 */
 
             // w0 - result of evaluating rhs
             // w1 - result of evaluating lhs
 
             match op {
-                BinaryOp::Add => writeln!(output, "add\tw0, w1, w0")?,
-                BinaryOp::Sub => writeln!(output, "sub\tw0, w1, w0")?,
-                BinaryOp::Multiply => writeln!(output, "mul\tw0, w1, w0")?,
-                BinaryOp::Divide => writeln!(output, "sdiv\tw0, w1, w0")?,
+                BinaryOp::Add => writeln!(g.output, "add\tw0, w1, w0")?,
+                BinaryOp::Sub => writeln!(g.output, "sub\tw0, w1, w0")?,
+                BinaryOp::Multiply => writeln!(g.output, "mul\tw0, w1, w0")?,
+                BinaryOp::Divide => writeln!(g.output, "sdiv\tw0, w1, w0")?,
 
                 BinaryOp::Equal => {
-                    writeln!(output, "cmp\tw1, w0")?;
-                    writeln!(output, "cset\tw0, eq")?;
+                    writeln!(g.output, "cmp\tw1, w0")?;
+                    writeln!(g.output, "cset\tw0, eq")?;
                 }
                 BinaryOp::NotEqual => {
-                    writeln!(output, "cmp\tw1, w0")?;
-                    writeln!(output, "cset\tw0, ne")?;
+                    writeln!(g.output, "cmp\tw1, w0")?;
+                    writeln!(g.output, "cset\tw0, ne")?;
                 }
                 BinaryOp::Less => {
-                    writeln!(output, "cmp\tw1, w0")?;
-                    writeln!(output, "cset\tw0, lt")?;
+                    writeln!(g.output, "cmp\tw1, w0")?;
+                    writeln!(g.output, "cset\tw0, lt")?;
                 }
                 BinaryOp::LessEqual => {
-                    writeln!(output, "cmp\tw1, w0")?;
-                    writeln!(output, "cset\tw0, le")?;
+                    writeln!(g.output, "cmp\tw1, w0")?;
+                    writeln!(g.output, "cset\tw0, le")?;
                 }
                 BinaryOp::Greater => {
-                    writeln!(output, "cmp\tw1, w0")?;
-                    writeln!(output, "cset\tw0, gt")?;
+                    writeln!(g.output, "cmp\tw1, w0")?;
+                    writeln!(g.output, "cset\tw0, gt")?;
                 }
                 BinaryOp::GreaterEqual => {
-                    writeln!(output, "cmp\tw1, w0")?;
-                    writeln!(output, "cset\tw0, ge")?;
+                    writeln!(g.output, "cmp\tw1, w0")?;
+                    writeln!(g.output, "cset\tw0, ge")?;
                 }
 
                 op => panic!("op {op} is not supported"),
             }
         }
+        Assign(name, expr) => {
+            let var = {
+                g.allocator
+                    .get(name)
+                    .cloned()
+                    .ok_or_else(|| format!("assignment to undeclared variable '{}'", name))?
+            };
+            generate_expr(g, expr)?;
+            var.emit_store_from_w0(g.output)?
+        } // op => panic!("op {op} is not supported"),
     }
 
     Ok(())
 }
 
+fn generate_stmt(g: &mut Generator, stmt: &Stmt) -> Result<(), Box<dyn Error>> {
+    match stmt {
+        Stmt::Expr(e) => generate_expr(g, e),
+        Stmt::Return(r) => {
+            generate_expr(g, r)?;
+            writeln!(g.output, "b\t{}", g.epilogue).map_err(Into::into)
+        }
+        Stmt::Declare(name, expr) => {
+            if g.allocator.get(name).is_some() {
+                return Err(format!("variable {} is already declared", name).into());
+            }
+
+            let var = g.allocator.allocate(name.clone(), 4);
+            println!("var {var:?} allocated");
+            if let Some(expr) = expr {
+                generate_expr(g, expr)?;
+                var.emit_store_from_w0(g.output)?;
+            }
+            Ok(())
+        }
+    }
+}
+
 pub fn generate(program: &Program, platform: &str) -> Result<String, Box<dyn std::error::Error>> {
     let function = &program.function;
     let mut output = String::new();
-    use std::fmt::Write;
 
     let prefix = match platform {
-        "macos" => "_", // macOS (Mach-O), label _main
-        "linux" => "",  // Linux (ELF), label main
+        "macos" => "_",
+        "linux" => "",
         _ => return Err(format!("Unsupported platform {platform}").into()),
     };
+
     writeln!(output, ".global {}main", prefix)?;
     writeln!(output, "{}main:", prefix)?;
-    writeln!(output, "sub	sp, sp, #16")?; // reserve stack space
 
-    let mut labels = LabelGenerator::new();
+    let free_use_registers = vec![
+        "w19", "w20", "w21", "w22", "w23", "w24", "w25", "w26", "w27", "w28",
+    ];
 
-    match &function.body {
-        Stmt::Return(expr) => {
-            // no extra handling for return
-            // as long as generate_expr ends with w0 containing the correct result,
-            // the ret instruction will return it
-            generate_expr(&mut output, expr, &mut labels)?;
+    let mut dry_allocator = Allocator::new(free_use_registers.clone());
+
+    for stmt in &function.body {
+        if let Stmt::Declare(name, _) = stmt {
+            dry_allocator.allocate(name.clone(), 4);
         }
     }
+    let stack_size = ((dry_allocator.total_stack_size() + 15) / 16) * 16; // alignment
 
-    writeln!(output, "add	sp, sp, #16")?; // clean up stack
+    // function prologue
+    writeln!(output, "stp\tx29, x30, [sp, #-16]!")?;
+    writeln!(output, "mov\tx29, sp")?;
+    if stack_size > 0 {
+        writeln!(output, "sub\tsp, sp, #{}", stack_size)?;
+    }
 
+    let mut labels = LabelGenerator::new();
+    let epilogue = labels.next("func_epilogue");
+
+    // codegen pass
+    let mut generator = Generator {
+        output: &mut output,
+        labels: &mut labels,
+        allocator: &mut Allocator::new(free_use_registers),
+        epilogue: epilogue.clone(),
+    };
+
+    let mut saw_return = false;
+    for stmt in &function.body {
+        if matches!(stmt, Stmt::Return(_)) {
+            saw_return = true;
+        }
+        generate_stmt(&mut generator, stmt)?;
+    }
+
+    // emit default return if none provided
+    if !saw_return {
+        writeln!(generator.output, "mov\tw0, #0")?;
+        // fallthrough to epilogue
+    }
+
+    // function epilogue
+    writeln!(output, "{}:", epilogue)?;
+    if stack_size > 0 {
+        writeln!(output, "add\tsp, sp, #{}", stack_size)?;
+    }
+    writeln!(output, "ldp\tx29, x30, [sp], #16")?;
     writeln!(output, "ret")?;
 
     Ok(output)

@@ -28,6 +28,8 @@ impl fmt::Display for Token {
             Token::OrOr => write!(f, "Symbol<||>"),
 
             Token::EqualEqual => write!(f, "Symbol< == >"),
+            Token::Equal => write!(f, "Symbol<=>"),
+
             Token::BangEqual => write!(f, "Symbol< != >"),
             Token::Less => write!(f, "Symbol< < >"),
             Token::LessEqual => write!(f, "Symbol< <= >"),

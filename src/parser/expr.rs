@@ -1,7 +1,7 @@
 use crate::ast::Expr::BinOp;
-use crate::ast::{BinaryOp, Expr, UnaryOp};
+use crate::ast::{BinaryOp, Expr, Stmt, UnaryOp};
 use crate::lexer::Token;
-
+use crate::parser::parse::{expect, expect_ident};
 // From highest to lowest (tighter binding first):
 // parse_factor – literals, parentheses, unary operators
 // parse_term – *, /
@@ -63,6 +63,11 @@ fn parse_factor(tokens: &[Token], pos: &mut usize) -> Result<Expr, String> {
             Ok(Expr::UnOp(op, Box::new(inner)))
         }
 
+        Some(Token::Identifier(name)) => {
+            *pos += 1;
+            Ok(Expr::Var(name.clone()))
+        }
+
         other => Err(format!("expected factor, found {:?}", other)),
     }
 }
@@ -119,8 +124,45 @@ fn parse_logical_and_exp(tokens: &[Token], pos: &mut usize) -> Result<Expr, Stri
 }
 
 pub fn parse_expr(tokens: &[Token], pos: &mut usize) -> Result<Expr, String> {
+    if let Some(Token::Identifier(name)) = tokens.get(*pos) {
+        if tokens.get(*pos + 1) == Some(&Token::Equal) {
+            let name = name.clone();
+            *pos += 2;
+            let rhs = parse_expr(tokens, pos)?;
+            return Ok(Expr::Assign(name, Box::new(rhs)));
+        }
+    }
+
     parse_binary_chain(tokens, pos, parse_logical_and_exp, |tok| match tok {
         Token::OrOr => Some(BinaryOp::LogicalOr),
         _ => None,
     })
+}
+
+pub fn parse_statement(tokens: &[Token], pos: &mut usize) -> Result<Stmt, String> {
+    match tokens.get(*pos) {
+        Some(Token::KeywordReturn) => {
+            *pos += 1;
+            let expr = parse_expr(tokens, pos)?;
+            expect(tokens, pos, &Token::Semicolon)?;
+            Ok(Stmt::Return(expr))
+        }
+        Some(Token::KeywordInt) => {
+            *pos += 1;
+            let name = expect_ident(tokens, pos)?;
+            let expr = if tokens.get(*pos) == Some(&Token::Equal) {
+                *pos += 1;
+                Some(parse_expr(tokens, pos)?)
+            } else {
+                None
+            };
+            expect(tokens, pos, &Token::Semicolon)?;
+            Ok(Stmt::Declare(name, expr))
+        }
+        _ => {
+            let expr = parse_expr(tokens, pos)?;
+            expect(tokens, pos, &Token::Semicolon)?;
+            Ok(Stmt::Expr(expr))
+        }
+    }
 }
