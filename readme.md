@@ -1,4 +1,4 @@
-# dumbc — Dumb C Compiler
+# dumbc — small C Compiler
 
 > A small C compiler written for learning.
 
