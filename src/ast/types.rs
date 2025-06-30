@@ -30,17 +30,21 @@ pub enum Expr {
     Const(i32),
     UnOp(UnaryOp, Box<Expr>),
     BinOp(BinaryOp, Box<Expr>, Box<Expr>),
+    Var(String),
+    Assign(String, Box<Expr>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Stmt {
     Return(Expr),
+    Declare(String, Option<Expr>),
+    Expr(Expr),
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Function {
     pub name: String,
-    pub body: Stmt,
+    pub body: Vec<Stmt>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

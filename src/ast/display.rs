@@ -7,6 +7,8 @@ impl fmt::Display for Expr {
             Expr::Const(n) => write!(f, "Int<{}>", n),
             Expr::UnOp(op, expr) => write!(f, "{}{}", op, expr),
             Expr::BinOp(op, lhs, rhs) => write!(f, "({} {} {})", lhs, op, rhs),
+            Expr::Var(name) => write!(f, "(var {})", name),
+            Expr::Assign(name, exp) => write!(f, "{} = {}", name, exp),
         }
     }
 }
@@ -51,6 +53,15 @@ impl fmt::Display for Stmt {
             Stmt::Return(expr) => {
                 writeln!(f, "return {}", expr)
             }
+            Stmt::Declare(name, Some(expr)) => {
+                writeln!(f, "declare {} = {}", name, expr)
+            }
+            Stmt::Declare(name, None) => {
+                writeln!(f, "declare {}", name)
+            }
+            Stmt::Expr(expr) => {
+                writeln!(f, "{}", expr)
+            }
         }
     }
 }
@@ -59,7 +70,7 @@ impl fmt::Display for Function {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "function int {}:", self.name)?;
         writeln!(f, "    params: ()")?;
-        writeln!(f, "    body:\n        {}", self.body)
+        writeln!(f, "    body:\n        {:?}", self.body)
     }
 }
 

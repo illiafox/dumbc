@@ -50,6 +50,44 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
             continue;
         }
 
+        // skip line comments: //...
+        if ch == '/' {
+            let mut lookahead = chars.clone();
+            lookahead.next();
+            if let Some(&next_ch) = lookahead.peek() {
+                if next_ch == '/' {
+                    // consume both slashes
+                    chars.next();
+                    chars.next();
+                    // skip until newline or end
+                    while let Some(&next_ch) = chars.peek() {
+                        if next_ch == '\n' {
+                            break;
+                        }
+                        chars.next();
+                    }
+                    continue;
+                } else if next_ch == '*' {
+                    // skip block comment: /* ... */
+                    chars.next(); // consume '/'
+                    chars.next(); // consume '*'
+                    loop {
+                        match chars.next() {
+                            Some('*') => {
+                                if chars.peek() == Some(&'/') {
+                                    chars.next(); // consume '/'
+                                    break;
+                                }
+                            }
+                            Some(_) => continue,
+                            None => return Err("Unterminated block comment".into()),
+                        }
+                    }
+                    continue;
+                }
+            }
+        }
+
         match ch {
             '(' => {
                 chars.next();
@@ -128,7 +166,7 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
                     chars.next();
                     tokens.push(Token::EqualEqual);
                 } else {
-                    return Err("Unexpected character: '='".to_string());
+                    tokens.push(Token::Equal);
                 }
             }
 

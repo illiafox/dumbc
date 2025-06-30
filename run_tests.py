@@ -4,7 +4,7 @@ from pathlib import Path
 import os
 import difflib
 
-STAGES = [1, 2, 3, 4]
+STAGES = [1, 2, 3, 4, 5]
 TARGET_ARCHS = ['aarch64']
 BASE = Path("testsuite")
 
@@ -89,6 +89,13 @@ def compare_c_and_s_outputs(c_file: Path, s_file: Path, arch: str = "arm64") -> 
     except subprocess.CalledProcessError as e:
         print(f"{RED}Compilation failed: {e}{RESET}")
         return False
+    finally:
+        for bin_file in (bin_c, bin_s):
+            if bin_file.exists():
+                try:
+                    bin_file.unlink()
+                except Exception as e:
+                    print(f"{RED}Failed to delete {bin_file}: {e}{RESET}")
 
     match_output = output_c == output_s
     match_code = code_c == code_s
@@ -146,6 +153,14 @@ def main():
         total = 0
         passed = 0
         failed = 0
+
+        examples_dir =Path("examples")
+        for f in examples_dir.glob("*.c"):
+            total += 1
+            if run_test(f, expect_success=True, arch=arch):
+                passed += 1
+            else:
+                failed += 1
 
         for stage in STAGES:
             stage_dir = BASE / f"stage_{stage}"
