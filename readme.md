@@ -22,7 +22,10 @@ Built by following [Nora Sandler’s "Write a Compiler"](https://norasandler.com
 - [x] Part 4: Even More Binary Operators (`&&`, `||`, `==`, `!=`, `<`, `<=`, `>`, `>=`)
 - [x] Part 4.1: Other Binary Operators (`%`, `&`, `|`, `^`, `<<`, `>>`)
 - [x] Part 5: Local Variables
-- [x] Part 5.1: Compound Assignment Operators (`+=`,`-=`,`/=`,`*=`,`%=`,`<<=`,`>>=`,`&=`,`|=`,`^=`), `++`, `--`, Comma operators (`int a = 2, b, c = a + 4;`)
+- [x] Part 5.1: 
+  - Compound Assignment Operators (`+=`,`-=`,`/=`,`*=`,`%=`,`<<=`,`>>=`,`&=`,`|=`,`^=`)
+  - Increment/Decrement(`++`/`--`)
+  - Comma operators (`int a = 2, b, c = a + 4;`)
 - [ ] Part 6: Conditionals
 - [ ] Part 7: Compound Statements
 - [ ] Part 8: Loops
