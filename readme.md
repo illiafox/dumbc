@@ -20,7 +20,7 @@ Built by following [Nora Sandler’s "Write a Compiler"](https://norasandler.com
 - [x] Part 2: Add unary operators (`-`, `~`, `!`)
 - [x] Part 3: Add binary operators (`+`, `-`, etc.)
 - [x] Part 4: Even More Binary Operators (`&&`, `||`, `==`, `!=`, `<`, `<=`, `>`, `>=`)
-- [ ] Part 5: Local Variables
+- [x] Part 5: Local Variables
 - [ ] Part 6: Conditionals
 - [ ] Part 7: Compound Statements
 - [ ] Part 8: Loops
