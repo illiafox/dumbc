@@ -166,7 +166,7 @@ fn assign_bin_op(op: BinaryOp, var_name: String, expr: Expr) -> Expr {
 fn token_to_binop(token: &Token) -> Option<BinaryOp> {
     match token {
         Token::PlusEqual => Some(BinaryOp::Add),
-        Token::MinusEqual => Some(BinaryOp::Add),
+        Token::MinusEqual => Some(BinaryOp::Sub),
         Token::AsteriskEqual => Some(BinaryOp::Multiply),
         Token::SlashEqual => Some(BinaryOp::Divide),
         Token::ModuloEqual => Some(BinaryOp::Modulo),
