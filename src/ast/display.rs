@@ -59,18 +59,11 @@ impl fmt::Display for BinaryOp {
 impl fmt::Display for Stmt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Stmt::Return(expr) => {
-                writeln!(f, "return {}", expr)
-            }
-            Stmt::Declare(name, Some(expr)) => {
-                writeln!(f, "declare {} = {}", name, expr)
-            }
-            Stmt::Declare(name, None) => {
-                writeln!(f, "declare {}", name)
-            }
-            Stmt::Expr(expr) => {
-                writeln!(f, "{}", expr)
-            }
+            Stmt::Return(expr) => writeln!(f, "return {}", expr),
+            Stmt::Declare(name, Some(expr)) => writeln!(f, "declare {} = {}", name, expr),
+            Stmt::Declare(name, None) => writeln!(f, "declare {}", name),
+            Stmt::Expr(expr) => writeln!(f, "{}", expr),
+            Stmt::Bingus(expr) => writeln!(f, "bingus {}", expr),
         }
     }
 }

@@ -264,6 +264,14 @@ pub fn parse_statements(tokens: &[Token], pos: &mut usize) -> Result<Vec<Stmt>, 
             let decls = parse_declaration_list(tokens, pos)?;
             Ok(decls)
         }
+        Some(Token::KeywordBingus) => {
+            *pos += 1;
+            expect(tokens, pos, &Token::LParen)?;
+            let expr = parse_expr(tokens, pos)?;
+            expect(tokens, pos, &Token::RParen)?;
+            expect(tokens, pos, &Token::Semicolon)?;
+            Ok(vec![Stmt::Bingus(expr)])
+        }
         _ => {
             let expr = parse_expr(tokens, pos)?;
             expect(tokens, pos, &Token::Semicolon)?;
