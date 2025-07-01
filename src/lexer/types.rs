@@ -3,6 +3,9 @@ pub enum Token {
     // Keywords
     KeywordInt,    // "int"
     KeywordReturn, // "return"
+    KeywordBingus, // "bingus"
+    KeywordIf,     // "if"
+    KeywordElse,   // "else"
 
     // Identifiers and literals
     Identifier(String), // e.g. "main"
@@ -62,7 +65,8 @@ pub enum Token {
     PlusPlus,   // ++
     MinusMinus, // --
 
-    Equal,
+    Equal, // =
 
-    KeywordBingus,
+    Colon,        // :
+    QuestionMark, // ?
 }

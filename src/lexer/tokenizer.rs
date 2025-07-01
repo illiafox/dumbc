@@ -111,6 +111,8 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
                 "bingus" => tokens.push(Token::KeywordBingus),
                 "int" => tokens.push(Token::KeywordInt),
                 "return" => tokens.push(Token::KeywordReturn),
+                "if" => tokens.push(Token::KeywordIf),
+                "else" => tokens.push(Token::KeywordElse),
                 _ => tokens.push(Token::Identifier(ident)),
             }
             continue;
@@ -173,6 +175,8 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
                 ("&", Token::And),
                 ("|", Token::Or),
                 ("^", Token::Or),
+                ("?", Token::QuestionMark),
+                (":", Token::Colon),
             ],
         ) {
             tokens.push(token);
