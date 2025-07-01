@@ -1,4 +1,4 @@
-use crate::ast::{BinaryOp, Expr, Function, Program, Stmt, UnaryOp};
+use crate::ast::{BinaryOp, Expr, Function, Program, Statement, UnaryOp};
 use std::fmt;
 
 impl fmt::Display for Expr {
@@ -9,6 +9,9 @@ impl fmt::Display for Expr {
             Expr::BinOp(op, lhs, rhs) => write!(f, "({} {} {})", lhs, op, rhs),
             Expr::Var(name) => write!(f, "(var {})", name),
             Expr::Assign(name, exp) => write!(f, "{} = {}", name, exp),
+            Expr::Conditional(cond, then, els) => {
+                write!(f, "({} ? {} : {})", cond, then, els)
+            }
         }
     }
 }
@@ -56,15 +59,13 @@ impl fmt::Display for BinaryOp {
     }
 }
 
-impl fmt::Display for Stmt {
+impl fmt::Display for Statement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Stmt::Return(expr) => writeln!(f, "return {}", expr),
-            Stmt::Declare(name, Some(expr)) => writeln!(f, "declare {} = {}", name, expr),
-            Stmt::Declare(name, None) => writeln!(f, "declare {}", name),
-            Stmt::Expr(expr) => writeln!(f, "{}", expr),
-            Stmt::Bingus(expr) => writeln!(f, "bingus {}", expr),
-            Stmt::If(cond, then, else_) => {
+            Statement::Return(expr) => writeln!(f, "return {}", expr),
+            Statement::Expr(expr) => writeln!(f, "{}", expr),
+            Statement::Bingus(expr) => writeln!(f, "bingus {}", expr),
+            Statement::If(cond, then, else_) => {
                 if let Some(else_expr) = else_ {
                     writeln!(f, "if {} {} {}", cond, then, else_expr)
                 } else {
@@ -79,7 +80,7 @@ impl fmt::Display for Function {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "function int {}:", self.name)?;
         writeln!(f, "    params: ()")?;
-        writeln!(f, "    body:\n        {:?}", self.body)
+        writeln!(f, "    body:\n        {:?}", self.block_items)
     }
 }
 

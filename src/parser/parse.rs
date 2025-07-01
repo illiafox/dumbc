@@ -1,6 +1,6 @@
 use crate::ast::{Function, Program};
 use crate::lexer::Token;
-use crate::parser::expr::parse_statements;
+use crate::parser::expr::parse_block_items;
 
 pub fn expect(tokens: &[Token], pos: &mut usize, expected: &Token) -> Result<(), String> {
     if tokens.get(*pos) == Some(expected) {
@@ -42,13 +42,16 @@ pub fn parse(tokens: &[Token]) -> Result<Program, String> {
     let mut body = Vec::new();
 
     while tokens.get(pos) != Some(&Token::RBrace) {
-        let statements = parse_statements(tokens, &mut pos)?;
+        let statements = parse_block_items(tokens, &mut pos)?;
         body.extend(statements);
     }
 
     expect(tokens, &mut pos, &Token::RBrace)?;
 
     Ok(Program {
-        function: Function { name, body },
+        function: Function {
+            name,
+            block_items: body,
+        },
     })
 }

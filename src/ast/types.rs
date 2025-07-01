@@ -39,22 +39,33 @@ pub enum Expr {
     BinOp(BinaryOp, Box<Expr>, Box<Expr>),
     Var(String),
     Assign(String, Box<Expr>),
+    Conditional(Box<Expr>, Box<Expr>, Box<Expr>), // the three expressions are the condition, 'if' expression and 'else' expression, respectively
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Stmt {
+pub enum Statement {
     Return(Expr),
-    Declare(String, Option<Expr>),
     Expr(Expr),
-    If(Expr, Box<Stmt>, Option<Box<Stmt>>), // condition, if branch, else branch (optional)
+    If(Expr, Box<Statement>, Option<Box<Statement>>), // condition, if branch, else branch (optional)
 
     Bingus(Expr), // print expr int val
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum Declaration {
+    Declare(String, Option<Expr>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum BlockItem {
+    Stmt(Statement),
+    Decl(Declaration),
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Function {
     pub name: String,
-    pub body: Vec<Stmt>,
+    pub block_items: Vec<BlockItem>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
