@@ -4,7 +4,7 @@ from pathlib import Path
 import os
 import difflib
 
-STAGES = [1, 2, 3, 4, 5]
+STAGES = [1, 2, 3, 4, 5, 6]
 TARGET_ARCHS = ['aarch64']
 BASE = Path("testsuite")
 
@@ -167,14 +167,14 @@ def main():
             valid = stage_dir / "valid"
             invalid = stage_dir / "invalid"
 
-            for f in valid.glob("*.c"):
+            for f in valid.glob("**/*.c"):
                 total += 1
                 if run_test(f, expect_success=True, arch=arch):
                     passed += 1
                 else:
                     failed += 1
 
-            for f in invalid.glob("*.c"):
+            for f in invalid.glob("**/*.c"):
                 total += 1
                 if run_test(f, expect_success=False, arch=arch):
                     passed += 1

@@ -1,18 +1,24 @@
+use crate::ast::BlockItem::Decl;
 use crate::ast::Expr::{Assign, BinOp, Const, Var};
-use crate::ast::{BinaryOp, Expr, Stmt, UnaryOp};
+use crate::ast::{BinaryOp, BlockItem, Declaration, Expr, Statement, UnaryOp};
 use crate::lexer::Token;
 use crate::parser::parse::{expect, expect_ident};
 
-// From highest to lowest (tighter binding first):
-// parse_factor – literals, parentheses, unary operators
-// parse_term – *, /
-// parse_additive_exp – +, -
-// parse_shift_exp >> <<
-// parse_relational_exp – <, >, <=, >=
-// parse_equality_exp – ==, !=
-// parse_logical_and_exp – &&
-// parse_expr – ||, ++, --, = (assignment)
-// parse_statements – return, int <var>, int <var> = <expr>, commas
+// From highest to lowest precedence (tighter binding first):
+// parse_factor             – literals, variables, parentheses, unary operators (-, ~, !)
+// parse_term               – *, /, %
+// parse_additive_exp       – +, -
+// parse_shift_exp          – <<, >>
+// parse_relational_exp     – <, >, <=, >=
+// parse_equality_exp       – ==, !=
+// parse_bitwise_and_exp    – &
+// parse_bitwise_xor_exp    – ^
+// parse_bitwise_or_exp     – |
+// parse_logical_and_exp    – &&
+// parse_logical_or_exp     – ||
+// parse_conditional_expr   – e1 ? e2 : e3
+// parse_expr               – assignment (=, +=, -=, etc.), ++, --
+// parse_statements         – return, if, expression, block, etc.
 
 // helper
 fn parse_binary_chain(
@@ -156,6 +162,31 @@ fn parse_logical_and_exp(tokens: &[Token], pos: &mut usize) -> Result<Expr, Stri
     })
 }
 
+fn parse_logical_or_exp(tokens: &[Token], pos: &mut usize) -> Result<Expr, String> {
+    parse_binary_chain(tokens, pos, parse_logical_and_exp, |tok| match tok {
+        Token::OrOr => Some(BinaryOp::LogicalOr),
+        _ => None,
+    })
+}
+
+fn parse_conditional_expr(tokens: &[Token], pos: &mut usize) -> Result<Expr, String> {
+    let condition = parse_logical_or_exp(tokens, pos)?;
+
+    if tokens.get(*pos) == Some(&Token::QuestionMark) {
+        *pos += 1;
+        let then_expr = parse_expr(tokens, pos)?;
+        expect(tokens, pos, &Token::Colon)?;
+        let else_expr = parse_conditional_expr(tokens, pos)?; // right-associative
+        Ok(Expr::Conditional(
+            Box::new(condition),
+            Box::new(then_expr),
+            Box::new(else_expr),
+        ))
+    } else {
+        Ok(condition)
+    }
+}
+
 fn assign_bin_op(op: BinaryOp, var_name: String, expr: Expr) -> Expr {
     Assign(
         var_name.clone(),
@@ -211,13 +242,10 @@ pub fn parse_expr(tokens: &[Token], pos: &mut usize) -> Result<Expr, String> {
         }
     }
 
-    parse_binary_chain(tokens, pos, parse_logical_and_exp, |tok| match tok {
-        Token::OrOr => Some(BinaryOp::LogicalOr),
-        _ => None,
-    })
+    parse_conditional_expr(tokens, pos)
 }
 
-fn parse_declaration_list(tokens: &[Token], pos: &mut usize) -> Result<Vec<Stmt>, String> {
+fn parse_declaration_list(tokens: &[Token], pos: &mut usize) -> Result<Vec<Declaration>, String> {
     let mut decls = Vec::new();
 
     loop {
@@ -228,7 +256,7 @@ fn parse_declaration_list(tokens: &[Token], pos: &mut usize) -> Result<Vec<Stmt>
         } else {
             None
         };
-        decls.push(Stmt::Declare(name, expr));
+        decls.push(Declaration::Declare(name, expr));
 
         match tokens.get(*pos) {
             Some(Token::Comma) => {
@@ -251,18 +279,13 @@ fn parse_declaration_list(tokens: &[Token], pos: &mut usize) -> Result<Vec<Stmt>
     Ok(decls)
 }
 
-pub fn parse_statements(tokens: &[Token], pos: &mut usize) -> Result<Vec<Stmt>, String> {
+pub fn parse_statement(tokens: &[Token], pos: &mut usize) -> Result<Statement, String> {
     match tokens.get(*pos) {
         Some(Token::KeywordReturn) => {
             *pos += 1;
             let expr = parse_expr(tokens, pos)?;
             expect(tokens, pos, &Token::Semicolon)?;
-            Ok(vec![Stmt::Return(expr)])
-        }
-        Some(Token::KeywordInt) => {
-            *pos += 1;
-            let decls = parse_declaration_list(tokens, pos)?;
-            Ok(decls)
+            Ok(Statement::Return(expr))
         }
         Some(Token::KeywordBingus) => {
             *pos += 1;
@@ -270,12 +293,43 @@ pub fn parse_statements(tokens: &[Token], pos: &mut usize) -> Result<Vec<Stmt>, 
             let expr = parse_expr(tokens, pos)?;
             expect(tokens, pos, &Token::RParen)?;
             expect(tokens, pos, &Token::Semicolon)?;
-            Ok(vec![Stmt::Bingus(expr)])
+            Ok(Statement::Bingus(expr))
+        }
+        Some(Token::KeywordIf) => {
+            *pos += 1;
+            expect(tokens, pos, &Token::LParen)?;
+            let condition = parse_expr(tokens, pos)?;
+            expect(tokens, pos, &Token::RParen)?;
+            let if_branch = Box::new(parse_statement(tokens, pos)?);
+
+            let else_branch = if let Some(Token::KeywordElse) = tokens.get(*pos) {
+                *pos += 1;
+                Some(Box::new(parse_statement(tokens, pos)?))
+            } else {
+                None
+            };
+
+            Ok(Statement::If(condition, if_branch, else_branch))
         }
         _ => {
             let expr = parse_expr(tokens, pos)?;
             expect(tokens, pos, &Token::Semicolon)?;
-            Ok(vec![Stmt::Expr(expr)])
+            Ok(Statement::Expr(expr))
+        }
+    }
+}
+
+pub fn parse_block_items(tokens: &[Token], pos: &mut usize) -> Result<Vec<BlockItem>, String> {
+    match tokens.get(*pos) {
+        Some(Token::KeywordInt) => {
+            *pos += 1;
+            let decls = parse_declaration_list(tokens, pos)?;
+            Ok(decls.iter().map(|d| Decl(d.clone())).collect())
+        }
+
+        _ => {
+            let stmt = parse_statement(tokens, pos)?;
+            Ok(vec![BlockItem::Stmt(stmt)])
         }
     }
 }

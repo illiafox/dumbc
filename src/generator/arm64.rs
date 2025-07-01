@@ -1,5 +1,7 @@
-use crate::ast::Expr::{Assign, BinOp};
-use crate::ast::{BinaryOp, Expr, Program, Stmt, UnaryOp};
+use crate::ast::BlockItem::{Decl, Stmt};
+use crate::ast::Declaration::Declare;
+use crate::ast::Expr::{Assign, BinOp, Conditional};
+use crate::ast::{BinaryOp, BlockItem, Expr, Program, Statement, UnaryOp};
 use crate::generator::allocator::{Allocator, Variable};
 use crate::generator::label::LabelGenerator;
 use std::error::Error;
@@ -36,6 +38,7 @@ struct Generator<'a> {
     allocator: &'a mut Allocator,
     epilogue: String,
 }
+
 fn generate_expr(g: &mut Generator, expr: &Expr) -> Result<(), Box<dyn Error>> {
     match expr {
         Expr::Const(n) => {
@@ -165,19 +168,68 @@ fn generate_expr(g: &mut Generator, expr: &Expr) -> Result<(), Box<dyn Error>> {
             generate_expr(g, expr)?;
             var.emit_store_from_w0(g.output)?
         } // op => panic!("op {op} is not supported"),
+
+        Conditional(cond, then, els) => {
+            let else_label = g.labels.next("_else");
+            let post_conditional = g.labels.next("_post_conditional");
+
+            generate_expr(g, cond)?; // evaluate cond (e1)
+            writeln!(g.output, "cmp\tw0, #0")?; // compare e1 cond zero
+            writeln!(g.output, "beq\t{}", else_label)?; // if e1 == 0 (false), jump to else (e3)
+
+            generate_expr(g, then)?; // evaluate e2
+            writeln!(g.output, "b\t{}", post_conditional)?; // skip e3
+
+            writeln!(g.output, "{}:", else_label)?;
+            generate_expr(g, els)?; // evaluate else (e3)
+
+            writeln!(g.output, "{}:", post_conditional)?;
+        }
     }
 
     Ok(())
 }
 
-fn generate_stmt(g: &mut Generator, stmt: &Stmt) -> Result<(), Box<dyn Error>> {
+fn generate_stmt(g: &mut Generator, stmt: &Statement) -> Result<(), Box<dyn Error>> {
     match stmt {
-        Stmt::Expr(e) => generate_expr(g, e),
-        Stmt::Return(r) => {
+        Statement::Expr(e) => generate_expr(g, e),
+        Statement::Return(r) => {
             generate_expr(g, r)?;
             writeln!(g.output, "b\t{}", g.epilogue).map_err(Into::into)
         }
-        Stmt::Declare(name, expr) => {
+        Statement::Bingus(expr) => {
+            generate_expr(g, expr)?;
+            writeln!(g.output, "bl\tbingus")?;
+            Ok(())
+        }
+        Statement::If(cond, then, els) => {
+            let else_label = g.labels.next("_else");
+            let post_conditional = g.labels.next("_post_conditional");
+
+            generate_expr(g, cond)?; // evaluate cond (e1)
+            writeln!(g.output, "cmp\tw0, #0")?; // compare e1 cond zero
+            writeln!(g.output, "beq\t{}", else_label)?; // if e1 == 0 (false), jump to else (e3)
+
+            generate_stmt(g, then)?; // evaluate e2
+            writeln!(g.output, "b\t{}", post_conditional)?; // skip e3
+
+            writeln!(g.output, "{}:", else_label)?;
+            if let Some(els) = els {
+                generate_stmt(g, els)?; // evaluate else (e3)
+            }
+            // if els is None, it would just go to post_conditional
+            // TODO: do not emit else_label if els.is_none()
+
+            writeln!(g.output, "{}:", post_conditional)?;
+            Ok(())
+        }
+    }
+}
+
+fn generate_block_item(g: &mut Generator, block_item: &BlockItem) -> Result<(), Box<dyn Error>> {
+    match block_item {
+        Stmt(stmt) => generate_stmt(g, stmt),
+        Decl(Declare(name, expr)) => {
             if g.allocator.get(name).is_some() {
                 return Err(format!("variable {} is already declared", name).into());
             }
@@ -188,11 +240,6 @@ fn generate_stmt(g: &mut Generator, stmt: &Stmt) -> Result<(), Box<dyn Error>> {
                 generate_expr(g, expr)?;
                 var.emit_store_from_w0(g.output)?;
             }
-            Ok(())
-        }
-        Stmt::Bingus(expr) => {
-            generate_expr(g, expr)?;
-            writeln!(g.output, "bl\tbingus")?;
             Ok(())
         }
     }
@@ -216,11 +263,11 @@ pub fn generate(program: &Program, platform: &str) -> Result<String, Box<dyn std
 
     let mut bingus_used = false;
 
-    for stmt in &function.body {
-        if let Stmt::Bingus(_) = stmt {
+    for stmt in &function.block_items {
+        if let Stmt(Statement::Bingus(_)) = stmt {
             bingus_used = true;
         }
-        if let Stmt::Declare(name, _) = stmt {
+        if let Decl(Declare(name, _)) = stmt {
             dry_allocator.allocate(name.clone(), 4);
         }
     }
@@ -259,11 +306,11 @@ pub fn generate(program: &Program, platform: &str) -> Result<String, Box<dyn std
     };
 
     let mut saw_return = false;
-    for stmt in &function.body {
-        if matches!(stmt, Stmt::Return(_)) {
+    for block_item in &function.block_items {
+        if matches!(block_item, Stmt(Statement::Return(_))) {
             saw_return = true;
         }
-        generate_stmt(&mut generator, stmt)?;
+        generate_block_item(&mut generator, block_item)?;
     }
 
     // emit default return if none provided
