@@ -26,7 +26,7 @@ Built by following [Nora Sandler’s "Write a Compiler"](https://norasandler.com
   - Compound Assignment Operators (`+=`,`-=`,`/=`,`*=`,`%=`,`<<=`,`>>=`,`&=`,`|=`,`^=`)
   - Increment/Decrement(`++`/`--`)
   - Comma operators (`int a = 2, b, c = a + 4;`)
-- [ ] Part 6: Conditionals
+- [x] Part 6: Conditionals
 - [ ] Part 7: Compound Statements
 - [ ] Part 8: Loops
 - [ ] Part 9: Functions
