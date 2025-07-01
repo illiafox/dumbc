@@ -195,6 +195,7 @@ fn generate_stmt(g: &mut Generator, stmt: &Stmt) -> Result<(), Box<dyn Error>> {
             writeln!(g.output, "bl\tbingus")?;
             Ok(())
         }
+        _ => Err(format!("unsupported assignment {:?}", stmt).into()),
     }
 }
 

@@ -46,6 +46,7 @@ pub enum Stmt {
     Return(Expr),
     Declare(String, Option<Expr>),
     Expr(Expr),
+    If(Expr, Box<Stmt>, Option<Box<Stmt>>), // condition, if branch, else branch (optional)
 
     Bingus(Expr), // print expr int val
 }

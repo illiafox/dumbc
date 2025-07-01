@@ -64,6 +64,13 @@ impl fmt::Display for Stmt {
             Stmt::Declare(name, None) => writeln!(f, "declare {}", name),
             Stmt::Expr(expr) => writeln!(f, "{}", expr),
             Stmt::Bingus(expr) => writeln!(f, "bingus {}", expr),
+            Stmt::If(cond, then, else_) => {
+                if let Some(else_expr) = else_ {
+                    writeln!(f, "if {} {} {}", cond, then, else_expr)
+                } else {
+                    writeln!(f, "if {} {}", cond, then)
+                }
+            }
         }
     }
 }
