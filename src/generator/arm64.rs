@@ -218,6 +218,7 @@ fn generate_stmt(g: &mut Generator, stmt: &Statement) -> Result<(), Box<dyn Erro
                 generate_stmt(g, els)?; // evaluate else (e3)
             }
             // if els is None, it would just go to post_conditional
+            // TODO: do not emit else_label if els.is_none()
 
             writeln!(g.output, "{}:", post_conditional)?;
             Ok(())
