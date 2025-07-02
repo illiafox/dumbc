@@ -1,4 +1,5 @@
-use crate::ast::{BinaryOp, Expr, Function, Program, Statement, UnaryOp};
+use crate::ast::Declaration::Declare;
+use crate::ast::{BinaryOp, BlockItem, Declaration, Expr, Function, Program, Statement, UnaryOp};
 use std::fmt;
 
 impl fmt::Display for Expr {
@@ -72,6 +73,36 @@ impl fmt::Display for Statement {
                     writeln!(f, "if {} {}", cond, then)
                 }
             }
+            Statement::Compound(block_items) => {
+                writeln!(f, "{{")?;
+                for block_item in block_items {
+                    writeln!(f, "  {}", block_item)?;
+                }
+                writeln!(f, "}}")
+            }
+        }
+    }
+}
+
+impl fmt::Display for Declaration {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Declare(name, expr) => {
+                if let Some(expr) = expr {
+                    writeln!(f, "declare {} = {}", name, expr)
+                } else {
+                    writeln!(f, "declare {}", name)
+                }
+            }
+        }
+    }
+}
+
+impl fmt::Display for BlockItem {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BlockItem::Stmt(stmt) => writeln!(f, "stmt {}", stmt),
+            BlockItem::Decl(decl) => writeln!(f, "decl {}", decl),
         }
     }
 }

@@ -6,6 +6,7 @@ pub enum Variable {
     Register(String),
 }
 
+#[derive(Clone)]
 pub struct Allocator {
     next_stack_offset: i32,
     used_registers: Vec<String>,

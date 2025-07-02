@@ -3,7 +3,10 @@ use crate::ast::Declaration::Declare;
 use crate::ast::Expr::{Assign, BinOp, Conditional};
 use crate::ast::{BinaryOp, BlockItem, Expr, Program, Statement, UnaryOp};
 use crate::generator::allocator::{Allocator, Variable};
+use crate::generator::bingus::is_bingus_used;
 use crate::generator::label::LabelGenerator;
+use crate::generator::stack::simulate_stack_usage;
+use std::collections::HashSet;
 use std::error::Error;
 use std::fmt;
 use std::fmt::Write;
@@ -35,8 +38,31 @@ impl Variable {
 struct Generator<'a> {
     output: &'a mut dyn Write,
     labels: &'a mut LabelGenerator,
-    allocator: &'a mut Allocator,
+    allocator: Allocator,
     epilogue: String,
+}
+
+struct StackTracker {
+    // start_offset: i32,
+}
+
+impl StackTracker {
+    fn begin(_g: &Generator) -> Self {
+        Self {
+            // start_offset: g.allocator.total_stack_size(),
+        }
+    }
+
+    fn end_scope(self, _g: &mut Generator) -> Result<(), std::fmt::Error> {
+        // let end_offset = g.allocator.total_stack_size();
+        // let diff = end_offset - self.start_offset;
+        // println!("diff: {}", diff);
+        // if diff > 0 {
+        //     writeln!(g.output, "add\tsp, sp, #{}", diff)?;
+        // }
+        // TODO: add dynamic scope
+        Ok(())
+    }
 }
 
 fn generate_expr(g: &mut Generator, expr: &Expr) -> Result<(), Box<dyn Error>> {
@@ -223,6 +249,7 @@ fn generate_stmt(g: &mut Generator, stmt: &Statement) -> Result<(), Box<dyn Erro
             writeln!(g.output, "{}:", post_conditional)?;
             Ok(())
         }
+        Statement::Compound(block_items) => generate_block(g, block_items),
     }
 }
 
@@ -230,10 +257,6 @@ fn generate_block_item(g: &mut Generator, block_item: &BlockItem) -> Result<(), 
     match block_item {
         Stmt(stmt) => generate_stmt(g, stmt),
         Decl(Declare(name, expr)) => {
-            if g.allocator.get(name).is_some() {
-                return Err(format!("variable {} is already declared", name).into());
-            }
-
             let var = g.allocator.allocate(name.clone(), 4);
             println!("var {var:?} allocated");
             if let Some(expr) = expr {
@@ -242,6 +265,54 @@ fn generate_block_item(g: &mut Generator, block_item: &BlockItem) -> Result<(), 
             }
             Ok(())
         }
+    }
+}
+
+fn generate_block(g: &mut Generator, items: &[BlockItem]) -> Result<(), Box<dyn Error>> {
+    let old_allocator = g.allocator.clone();
+    let mut current_scope = HashSet::new();
+
+    let tracker = StackTracker::begin(g);
+
+    for item in items {
+        match item {
+            Decl(Declare(name, _)) => {
+                if !current_scope.insert(name.clone()) {
+                    return Err(format!("variable {} redeclared in same block", name).into());
+                }
+                generate_block_item(g, item)?;
+            }
+            Stmt(stmt) => {
+                generate_stmt(g, stmt)?;
+            }
+        }
+    }
+
+    tracker.end_scope(g)?;
+    g.allocator = old_allocator;
+
+    Ok(())
+}
+
+fn ends_with_return(item: &BlockItem) -> bool {
+    match item {
+        Stmt(stmt) => stmt_ends_with_return(stmt),
+        Decl(_) => false,
+    }
+}
+
+fn stmt_ends_with_return(stmt: &Statement) -> bool {
+    match stmt {
+        Statement::Return(_) => true,
+        Statement::If(_, then, Some(else_)) => {
+            stmt_ends_with_return(then) && stmt_ends_with_return(else_)
+        }
+        Statement::Compound(items) => items
+            .iter()
+            .rev()
+            .find(|item| matches!(item, Stmt(_)))
+            .is_some_and(ends_with_return),
+        _ => false,
     }
 }
 
@@ -260,19 +331,13 @@ pub fn generate(program: &Program, platform: &str) -> Result<String, Box<dyn std
     ];
 
     let mut dry_allocator = Allocator::new(free_use_registers.clone());
+    let mut max_stack = 0;
+    simulate_stack_usage(&function.block_items, &mut dry_allocator, &mut max_stack);
 
-    let mut bingus_used = false;
+    let stack_size = ((max_stack + 15) / 16) * 16; // alignment
+    println!("stack size: {stack_size}");
 
-    for stmt in &function.block_items {
-        if let Stmt(Statement::Bingus(_)) = stmt {
-            bingus_used = true;
-        }
-        if let Decl(Declare(name, _)) = stmt {
-            dry_allocator.allocate(name.clone(), 4);
-        }
-    }
-    let stack_size = ((dry_allocator.total_stack_size() + 15) / 16) * 16; // alignment
-
+    let bingus_used = program.function.block_items.iter().any(is_bingus_used);
     if bingus_used {
         match platform {
             "macos" => {
@@ -287,9 +352,27 @@ pub fn generate(program: &Program, platform: &str) -> Result<String, Box<dyn std
     writeln!(output, ".global {}main", prefix)?;
     writeln!(output, "{}main:", prefix)?;
 
-    // function prologue
-    writeln!(output, "stp\tx29, x30, [sp, #-16]!")?;
-    writeln!(output, "mov\tx29, sp")?;
+    // ---------- function prologue ----------
+    writeln!(output, "stp\tx29, x30, [sp, #-16]!")?; // save frame-pointer (x29) and link-register (x30).
+    writeln!(output, "mov\tx29, sp")?; // establish new frame pointer
+
+    // save all callee-saved registers (x19-x28) we plan to use for locals
+    // (five 128-bit pushes = 80 bytes, keep the order!)
+
+    let x_registers = [
+        // why x19-x28 and not w19-w28? because they are the same physical register, but have different view
+        // x19	64 bit	the whole general-purpose register 19
+        // w19	32 bit	lower half of that same register
+        ["x19", "x20"],
+        ["x21", "x22"],
+        ["x23", "x24"],
+        ["x25", "x26"],
+        ["x27", "x28"],
+    ];
+    for [ra, rb] in &x_registers {
+        writeln!(output, "stp\t{}, {}, [sp, #-16]!", ra, rb)?;
+    }
+
     if stack_size > 0 {
         writeln!(output, "sub\tsp, sp, #{}", stack_size)?;
     }
@@ -301,17 +384,17 @@ pub fn generate(program: &Program, platform: &str) -> Result<String, Box<dyn std
     let mut generator = Generator {
         output: &mut output,
         labels: &mut labels,
-        allocator: &mut Allocator::new(free_use_registers),
+        allocator: Allocator::new(free_use_registers),
         epilogue: epilogue.clone(),
     };
 
-    let mut saw_return = false;
-    for block_item in &function.block_items {
-        if matches!(block_item, Stmt(Statement::Return(_))) {
-            saw_return = true;
-        }
-        generate_block_item(&mut generator, block_item)?;
-    }
+    let saw_return = function
+        .block_items
+        .iter()
+        .rev()
+        .find(|item| matches!(item, Stmt(_)))
+        .is_some_and(ends_with_return);
+    generate_block(&mut generator, &function.block_items)?;
 
     // emit default return if none provided
     if !saw_return {
@@ -324,6 +407,12 @@ pub fn generate(program: &Program, platform: &str) -> Result<String, Box<dyn std
     if stack_size > 0 {
         writeln!(output, "add\tsp, sp, #{}", stack_size)?;
     }
+
+    // restore x27-x28 … x19-x20 (reverse order!)
+    for [ra, rb] in x_registers.iter().rev() {
+        writeln!(output, "ldp\t{}, {}, [sp], #16", ra, rb)?;
+    }
+
     writeln!(output, "ldp\tx29, x30, [sp], #16")?;
     writeln!(output, "ret")?;
 

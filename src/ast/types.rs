@@ -47,6 +47,7 @@ pub enum Statement {
     Return(Expr),
     Expr(Expr),
     If(Expr, Box<Statement>, Option<Box<Statement>>), // condition, if branch, else branch (optional)
+    Compound(Vec<BlockItem>),                         // added
 
     Bingus(Expr), // print expr int val
 }
