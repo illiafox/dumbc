@@ -311,6 +311,18 @@ pub fn parse_statement(tokens: &[Token], pos: &mut usize) -> Result<Statement, S
 
             Ok(Statement::If(condition, if_branch, else_branch))
         }
+        Some(Token::LBrace) => {
+            // begin compound block
+            *pos += 1;
+            let mut block_items = Vec::new();
+            while tokens.get(*pos) != Some(&Token::RBrace) {
+                let mut parsed = parse_block_items(tokens, pos)?;
+                block_items.append(&mut parsed);
+            }
+            expect(tokens, pos, &Token::RBrace)?;
+            Ok(Statement::Compound(block_items))
+        }
+        Some(Token::RBrace) => Err("Unexpected }".into()),
         _ => {
             let expr = parse_expr(tokens, pos)?;
             expect(tokens, pos, &Token::Semicolon)?;

@@ -48,6 +48,10 @@ pub fn parse(tokens: &[Token]) -> Result<Program, String> {
 
     expect(tokens, &mut pos, &Token::RBrace)?;
 
+    if pos < tokens.len() {
+        return Err(format!("Unexpected token: {:?}", tokens[pos]));
+    }
+
     Ok(Program {
         function: Function {
             name,

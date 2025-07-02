@@ -4,7 +4,7 @@ from pathlib import Path
 import os
 import difflib
 
-STAGES = [1, 2, 3, 4, 5, 6]
+STAGES = [1, 2, 3, 4, 5, 6, 7]
 TARGET_ARCHS = ['aarch64']
 BASE = Path("testsuite")
 
