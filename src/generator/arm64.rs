@@ -40,6 +40,15 @@ struct Generator<'a> {
     labels: &'a mut LabelGenerator,
     allocator: Allocator,
     epilogue: String,
+    debug_enabled: bool,
+}
+
+impl Generator<'_> {
+    pub fn debug(&self, msg: impl std::fmt::Display) {
+        if self.debug_enabled {
+            println!("{msg}");
+        }
+    }
 }
 
 struct StackTracker {
@@ -258,7 +267,7 @@ fn generate_block_item(g: &mut Generator, block_item: &BlockItem) -> Result<(), 
         Stmt(stmt) => generate_stmt(g, stmt),
         Decl(Declare(name, expr)) => {
             let var = g.allocator.allocate(name.clone(), 4);
-            println!("var {var:?} allocated");
+            g.debug(format!("var {var:?} allocated"));
             if let Some(expr) = expr {
                 generate_expr(g, expr)?;
                 var.emit_store_from_w0(g.output)?;
@@ -316,7 +325,7 @@ fn stmt_ends_with_return(stmt: &Statement) -> bool {
     }
 }
 
-pub fn generate(program: &Program, platform: &str) -> Result<String, Box<dyn std::error::Error>> {
+pub fn generate(program: &Program, platform: &str, debug: bool) -> Result<String, Box<dyn Error>> {
     let function = &program.function;
     let mut output = String::new();
 
@@ -335,7 +344,10 @@ pub fn generate(program: &Program, platform: &str) -> Result<String, Box<dyn std
     simulate_stack_usage(&function.block_items, &mut dry_allocator, &mut max_stack);
 
     let stack_size = ((max_stack + 15) / 16) * 16; // alignment
-    println!("stack size: {stack_size}");
+
+    if debug {
+        println!("stack size: {stack_size}");
+    }
 
     let bingus_used = program.function.block_items.iter().any(is_bingus_used);
     if bingus_used {
@@ -386,6 +398,7 @@ pub fn generate(program: &Program, platform: &str) -> Result<String, Box<dyn std
         labels: &mut labels,
         allocator: Allocator::new(free_use_registers),
         epilogue: epilogue.clone(),
+        debug_enabled: debug,
     };
 
     let saw_return = function

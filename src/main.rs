@@ -1,5 +1,6 @@
 use crate::lexer::lex;
 use crate::parser::parse;
+use clap::Parser;
 use generator::arm64::generate;
 
 mod ast;
@@ -7,54 +8,59 @@ mod generator;
 mod lexer;
 mod parser;
 
+/// Simple program to greet a person
+#[derive(Parser, Debug)]
+#[command(name = "dumbc")]
+#[command(about = "compiles C code")]
+#[command(version, about)]
+struct Args {
+    #[arg(value_name = "FILE", help = "The file to compile")]
+    input_file: String,
+
+    #[arg(short, long, help = "target architecture", default_value_t = std::env::consts::ARCH.to_string())]
+    arch: String,
+
+    #[arg(short, long, help = "target platform", default_value_t = std::env::consts::OS.to_string())]
+    platform: String,
+
+    #[arg(long, help = "debug mode")]
+    debug: bool,
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut args = std::env::args().skip(1); // skip program name
-    let input_path = args
-        .next()
-        .expect("Usage: dumbc <file.c> [--arch arch] [--platform macos|linux]");
+    let args = Args::parse();
 
-    let mut arch = std::env::consts::ARCH.to_string();
-    let mut platform = std::env::consts::OS.to_string(); // default to host OS (e.g. "linux", "darwin")
-
-    while let Some(arg) = args.next() {
-        match arg.as_str() {
-            "--arch" => {
-                arch = args.next().expect("Expected architecture after --arch");
-            }
-            "--platform" => {
-                platform = args.next().expect("Expected platform after --platform");
-            }
-            _ => {}
-        }
-    }
-
-    if arch == "aarch64" {
-        arch = "arm64".to_string();
-    }
-
-    if arch != "arm64" {
-        eprintln!("Only arm64 is supported. Found: {}", arch);
+    if args.arch != "aarch64" {
+        eprintln!("Only arm64 is supported. Found: {}", args.arch);
         std::process::exit(1);
     }
 
-    if platform != "linux" && platform != "macos" {
+    if args.platform != "linux" && args.platform != "macos" {
         eprintln!(
             "Unsupported platform: {} (expected 'linux' or 'macos')",
-            platform
+            args.platform
         );
         std::process::exit(1);
     }
 
-    let input = std::fs::read_to_string(&input_path)?;
+    let input = std::fs::read_to_string(&args.input_file)?;
     let tokens = lex(&input).expect("Lexer failed");
-    println!("{:?}", tokens);
+    if args.debug {
+        println!("parsed tokens {:?}", tokens);
+    }
 
     let program = parse(&tokens).expect("Parser failed");
+    if args.debug {
+        println!("program: {}", program);
+    }
 
-    println!("{}", program);
-    let asm = generate(&program, &platform)?;
+    let asm = generate(&program, &args.platform, args.debug)?;
 
-    let asm_path = input_path.replace(".c", ".s");
+    let asm_path = args.input_file.replace(".c", ".s");
+    if args.debug {
+        println!("writing to {}", asm_path);
+    }
+
     std::fs::write(&asm_path, asm)?;
     Ok(())
 }
