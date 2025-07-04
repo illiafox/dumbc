@@ -1,6 +1,5 @@
-use crate::ast::BlockItem::Decl;
 use crate::ast::Expr::{Assign, BinOp, Const, Var};
-use crate::ast::{BinaryOp, BlockItem, Declaration, Expr, Statement, UnaryOp};
+use crate::ast::{BinaryOp, BlockItem, Expr, Statement, UnaryOp};
 use crate::lexer::Token;
 use crate::parser::parse::{expect, expect_ident};
 
@@ -246,7 +245,7 @@ pub fn parse_expr(tokens: &[Token], pos: &mut usize) -> Result<Expr, String> {
     parse_conditional_expr(tokens, pos)
 }
 
-fn parse_declaration_list(tokens: &[Token], pos: &mut usize) -> Result<Vec<Declaration>, String> {
+fn parse_declaration_list(tokens: &[Token], pos: &mut usize) -> Result<Vec<BlockItem>, String> {
     let mut decls = Vec::new();
 
     loop {
@@ -257,12 +256,11 @@ fn parse_declaration_list(tokens: &[Token], pos: &mut usize) -> Result<Vec<Decla
         } else {
             None
         };
-        decls.push(Declaration::Declare(name, expr));
+        decls.push(BlockItem::Decl(name, expr));
 
         match tokens.get(*pos) {
             Some(Token::Comma) => {
                 *pos += 1;
-                continue;
             }
             Some(Token::Semicolon) => {
                 *pos += 1;
@@ -341,7 +339,7 @@ pub fn parse_block_items(tokens: &[Token], pos: &mut usize) -> Result<Vec<BlockI
         Some(Token::KeywordInt) => {
             *pos += 1;
             let decls = parse_declaration_list(tokens, pos)?;
-            Ok(decls.iter().map(|d| Decl(d.clone())).collect())
+            Ok(decls)
         }
 
         _ => {

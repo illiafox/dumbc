@@ -92,17 +92,13 @@ pub enum Statement {
     Bingus(Expr),
 }
 
-// TODO: Possibly unneeded
-#[derive(Debug, Clone, PartialEq)]
-pub enum Declaration {
-    Declare(String, Option<Expr>),
-}
-
 /// Item of a [`Statement::Compound`]
 #[derive(Debug, Clone, PartialEq)]
 pub enum BlockItem {
+    /// Arbitrary statement
     Stmt(Statement),
-    Decl(Declaration),
+    /// Variable declaration with optional initial value.
+    Decl(String, Option<Expr>),
 }
 
 #[derive(Debug, Clone, PartialEq)]

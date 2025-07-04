@@ -1,4 +1,3 @@
-use crate::ast::Declaration::Declare;
 use crate::ast::{BlockItem, Statement};
 use crate::generator::allocator::Allocator;
 
@@ -7,7 +6,7 @@ pub fn simulate_stack_usage(items: &[BlockItem], allocator: &mut Allocator, max:
 
     for item in items {
         match item {
-            BlockItem::Decl(Declare(name, _)) => {
+            BlockItem::Decl(name, _) => {
                 allocator.allocate(name.clone(), 4);
                 *max = (*max).max(allocator.total_stack_size());
             }

@@ -56,7 +56,7 @@ fn skip_comment_if_present(chars: &mut Peekable<Chars>) -> Result<bool, String> 
                                 break;
                             }
                         }
-                        Some(_) => continue,
+                        Some(_) => {}
                         None => return Err("Unterminated block comment".into()),
                     }
                 }
@@ -72,17 +72,10 @@ fn skip_comment_if_present(chars: &mut Peekable<Chars>) -> Result<bool, String> 
 fn match_operator(chars: &mut Peekable<Chars>, matches: &[(&str, Token)]) -> Option<Token> {
     for (symbol, token) in matches {
         let mut lookahead = chars.clone();
-        let mut matched = true;
 
-        for expected_ch in symbol.chars() {
-            match lookahead.next() {
-                Some(actual_ch) if actual_ch == expected_ch => continue,
-                _ => {
-                    matched = false;
-                    break;
-                }
-            }
-        }
+        let matched = symbol
+            .chars()
+            .any(|expected| lookahead.next().is_some_and(|actual| expected == actual));
 
         if matched {
             for _ in 0..symbol.len() {
@@ -180,7 +173,6 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
             ],
         ) {
             tokens.push(token);
-            continue;
         } else {
             return Err(format!("Unrecognized character '{}'", ch));
         }

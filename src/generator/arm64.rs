@@ -1,5 +1,4 @@
 use crate::ast::BlockItem::{Decl, Stmt};
-use crate::ast::Declaration::Declare;
 use crate::ast::Expr::{Assign, BinOp, Conditional};
 use crate::ast::{BinaryOp, BlockItem, Expr, Program, Statement, UnaryOp};
 use crate::generator::allocator::{Allocator, Variable};
@@ -265,7 +264,7 @@ fn generate_stmt(g: &mut Generator, stmt: &Statement) -> Result<(), Box<dyn Erro
 fn generate_block_item(g: &mut Generator, block_item: &BlockItem) -> Result<(), Box<dyn Error>> {
     match block_item {
         Stmt(stmt) => generate_stmt(g, stmt),
-        Decl(Declare(name, expr)) => {
+        Decl(name, expr) => {
             let var = g.allocator.allocate(name.clone(), 4);
             g.debug(format!("var {var:?} allocated"));
             if let Some(expr) = expr {
@@ -285,7 +284,7 @@ fn generate_block(g: &mut Generator, items: &[BlockItem]) -> Result<(), Box<dyn 
 
     for item in items {
         match item {
-            Decl(Declare(name, _)) => {
+            Decl(name, _) => {
                 if !current_scope.insert(name.clone()) {
                     return Err(format!("variable {} redeclared in same block", name).into());
                 }
@@ -306,7 +305,7 @@ fn generate_block(g: &mut Generator, items: &[BlockItem]) -> Result<(), Box<dyn 
 fn ends_with_return(item: &BlockItem) -> bool {
     match item {
         Stmt(stmt) => stmt_ends_with_return(stmt),
-        Decl(_) => false,
+        Decl(_, _) => false,
     }
 }
 
