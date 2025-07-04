@@ -12,8 +12,7 @@ pub fn expect(tokens: &[Token], pos: &mut usize, expected: &Token) -> Result<(),
             expected,
             tokens
                 .get(*pos)
-                .map(|t| t.to_string())
-                .unwrap_or_else(|| "EOF".to_string())
+                .map_or_else(|| "EOF".to_string(), std::string::ToString::to_string)
         ))
     }
 }

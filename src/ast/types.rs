@@ -98,7 +98,7 @@ pub enum Declaration {
     Declare(String, Option<Expr>),
 }
 
-/// Item of a [Statement::Compound]
+/// Item of a [`Statement::Compound`]
 #[derive(Debug, Clone, PartialEq)]
 pub enum BlockItem {
     Stmt(Statement),

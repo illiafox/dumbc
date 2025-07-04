@@ -187,10 +187,14 @@ fn parse_conditional_expr(tokens: &[Token], pos: &mut usize) -> Result<Expr, Str
     }
 }
 
-fn assign_bin_op(op: BinaryOp, var_name: String, expr: Expr) -> Expr {
+fn assign_bin_op(op: BinaryOp, var_name: &str, expr: Expr) -> Expr {
     Assign(
-        var_name.clone(),
-        Box::new(BinOp(op, Box::new(Var(var_name.clone())), Box::new(expr))),
+        var_name.to_string(),
+        Box::new(BinOp(
+            op,
+            Box::new(Var(var_name.to_string())),
+            Box::new(expr),
+        )),
     )
 }
 
@@ -214,27 +218,24 @@ pub fn parse_expr(tokens: &[Token], pos: &mut usize) -> Result<Expr, String> {
     if let Some(Token::Identifier(name)) = tokens.get(*pos) {
         match tokens.get(*pos + 1) {
             Some(&Token::Equal) => {
-                let name = name.clone();
                 *pos += 2;
                 let rhs = parse_expr(tokens, pos)?;
-                return Ok(Assign(name, Box::new(rhs)));
+                return Ok(Assign(name.to_string(), Box::new(rhs)));
             }
             Some(&Token::PlusPlus) => {
                 *pos += 2;
-                return Ok(assign_bin_op(BinaryOp::Add, name.clone(), Const(1)));
+                return Ok(assign_bin_op(BinaryOp::Add, name, Const(1)));
             }
             Some(&Token::MinusMinus) => {
-                let name = name.clone();
                 *pos += 2;
-                return Ok(assign_bin_op(BinaryOp::Sub, name.clone(), Const(1)));
+                return Ok(assign_bin_op(BinaryOp::Sub, name, Const(1)));
             }
 
             Some(token) => {
                 if let Some(bin_op) = token_to_binop(token) {
-                    let name = name.clone();
                     *pos += 2;
                     let rhs = parse_expr(tokens, pos)?;
-                    return Ok(assign_bin_op(bin_op, name.clone(), rhs));
+                    return Ok(assign_bin_op(bin_op, name, rhs));
                 }
             }
 

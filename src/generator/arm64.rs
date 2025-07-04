@@ -341,7 +341,7 @@ pub fn generate(program: &Program, platform: &str, debug: bool) -> Result<String
         "w19", "w20", "w21", "w22", "w23", "w24", "w25", "w26", "w27", "w28",
     ];
 
-    let mut dry_allocator = Allocator::new(free_use_registers.clone());
+    let mut dry_allocator = Allocator::new(&free_use_registers);
     let mut max_stack = 0;
     simulate_stack_usage(&function.block_items, &mut dry_allocator, &mut max_stack);
 
@@ -398,7 +398,7 @@ pub fn generate(program: &Program, platform: &str, debug: bool) -> Result<String
     let mut generator = Generator {
         output: &mut output,
         labels: &mut labels,
-        allocator: Allocator::new(free_use_registers),
+        allocator: Allocator::new(&free_use_registers),
         epilogue: epilogue.clone(),
         debug_enabled: debug,
     };

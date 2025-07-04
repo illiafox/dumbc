@@ -2,18 +2,18 @@ use crate::lexer::Token;
 use std::iter::Peekable;
 use std::str::Chars;
 
-fn is_identifier_char(c: &char) -> bool {
-    c.is_alphanumeric() || *c == '_'
+fn is_identifier_char(c: char) -> bool {
+    c.is_alphanumeric() || c == '_'
 }
 
 fn consume_until<F>(chars: &mut Peekable<Chars>, condition: F) -> String
 where
-    F: Fn(&char) -> bool,
+    F: Fn(char) -> bool,
 {
     let mut ident = String::new();
 
     while let Some(next_ch) = chars.peek() {
-        if !condition(next_ch) {
+        if !condition(*next_ch) {
             break;
         }
         ident.push(*next_ch);
@@ -119,7 +119,7 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
         }
 
         if ch.is_ascii_digit() {
-            let num = consume_until(&mut chars, char::is_ascii_digit);
+            let num = consume_until(&mut chars, |c: char| c.is_ascii_digit());
             let value: i32 = num.parse().map_err(|_| "Invalid integer")?;
             tokens.push(Token::IntLiteral(value));
             continue;
