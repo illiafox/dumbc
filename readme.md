@@ -28,7 +28,7 @@ Built by following [Nora Sandler’s "Write a Compiler"](https://norasandler.com
   - Comma operators (`int a = 2, b, c = a + 4;`)
 - [x] Part 6: Conditionals
 - [x] Part 7: Compound Statements
-- [ ] Part 8: Loops
+- [x] Part 8: Loops
 - [ ] Part 9: Functions
 - [ ] Part 10: Global Variables
 
