@@ -1,5 +1,4 @@
-use crate::ast::Declaration::Declare;
-use crate::ast::{BinaryOp, BlockItem, Declaration, Expr, Function, Program, Statement, UnaryOp};
+use crate::ast::{BinaryOp, BlockItem, Expr, Function, Program, Statement, UnaryOp};
 use std::fmt;
 
 impl fmt::Display for Expr {
@@ -10,7 +9,7 @@ impl fmt::Display for Expr {
             Expr::BinOp(op, lhs, rhs) => write!(f, "({} {} {})", lhs, op, rhs),
             Expr::Var(name) => write!(f, "(var {})", name),
             Expr::Assign(name, exp) => write!(f, "{} = {}", name, exp),
-            Expr::Conditional(cond, then, els) => {
+            Expr::Conditional { cond, then, els } => {
                 write!(f, "({} ? {} : {})", cond, then, els)
             }
         }
@@ -31,7 +30,7 @@ impl fmt::Display for UnaryOp {
 impl fmt::Display for BinaryOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let op_str = match self {
-            BinaryOp::Multiply => "+",
+            BinaryOp::Multiply => "*",
             BinaryOp::Sub => "-",
             BinaryOp::Add => "+",
             BinaryOp::Divide => "/",
@@ -66,8 +65,8 @@ impl fmt::Display for Statement {
             Statement::Return(expr) => writeln!(f, "return {}", expr),
             Statement::Expr(expr) => writeln!(f, "{}", expr),
             Statement::Bingus(expr) => writeln!(f, "bingus {}", expr),
-            Statement::If(cond, then, else_) => {
-                if let Some(else_expr) = else_ {
+            Statement::If { cond, then, els } => {
+                if let Some(else_expr) = els {
                     writeln!(f, "if {} {} {}", cond, then, else_expr)
                 } else {
                     writeln!(f, "if {} {}", cond, then)
@@ -84,25 +83,12 @@ impl fmt::Display for Statement {
     }
 }
 
-impl fmt::Display for Declaration {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Declare(name, expr) => {
-                if let Some(expr) = expr {
-                    writeln!(f, "declare {} = {}", name, expr)
-                } else {
-                    writeln!(f, "declare {}", name)
-                }
-            }
-        }
-    }
-}
-
 impl fmt::Display for BlockItem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             BlockItem::Stmt(stmt) => writeln!(f, "stmt {}", stmt),
-            BlockItem::Decl(decl) => writeln!(f, "decl {}", decl),
+            BlockItem::Decl(name, Some(expr)) => writeln!(f, "decl declare {name} = {expr}"),
+            BlockItem::Decl(name, None) => writeln!(f, "decl declare {name}"),
         }
     }
 }

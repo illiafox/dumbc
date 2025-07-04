@@ -1,11 +1,12 @@
+import argparse
+import difflib
+import os
 import subprocess
 import sys
 from pathlib import Path
-import os
-import difflib
 
 STAGES = [1, 2, 3, 4, 5, 6, 7]
-TARGET_ARCHS = ['aarch64']
+TARGET_ARCHS = ["aarch64"]
 BASE = Path("testsuite")
 
 # colors
@@ -17,15 +18,20 @@ RESET = "\033[0m"
 USE_GITHUB_FORMAT = os.getenv("GITHUB_ANNOTATIONS") == "1"
 CROSS_COMPILE = os.getenv("CROSS_COMPILE") == "1"
 
-import argparse
-
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--arch-style", choices=["mac", "gnu"], default="mac",
-                        help="Use 'mac' for `-arch arm64` (macOS), 'gnu' for `--target=aarch64-linux-gnu` (Linux)")
-    parser.add_argument("--disable-compile", action="store_true",
-                        help="Disable compilation and output comparison")
+    parser.add_argument(
+        "--arch-style",
+        choices=["mac", "gnu"],
+        default="mac",
+        help="Use 'mac' for `-arch arm64` (macOS), 'gnu' for `--target=aarch64-linux-gnu` (Linux)",
+    )
+    parser.add_argument(
+        "--disable-compile",
+        action="store_true",
+        help="Disable compilation and output comparison",
+    )
     return parser.parse_args()
 
 
@@ -47,7 +53,7 @@ def build_clang_command(source: Path, output: Path, arch: str, style: str) -> li
     return cmd
 
 
-def compile_and_run(source: Path, output: Path, arch: str) -> str:
+def compile_and_run(source: Path, output: Path, arch: str) -> tuple[str, int]:
     # Compile source to output binary
     clang_cmd = build_clang_command(source, output, arch, ARCH_STYLE)
 
@@ -67,12 +73,10 @@ def compile_and_run(source: Path, output: Path, arch: str) -> str:
     # Run the compiled binary
     run_cmd = ["qemu-aarch64", str(output)] if CROSS_COMPILE else [str(output)]
     result = subprocess.run(
-        run_cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True
+        run_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
     )
     return result.stdout.strip(), result.returncode
+
 
 def compare_c_and_s_outputs(c_file: Path, s_file: Path, arch: str = "arm64") -> bool:
     if not c_file.exists() or not s_file.exists():
@@ -123,7 +127,7 @@ def run_test(c_file: Path, expect_success: bool, arch: str) -> bool:
     result = subprocess.run(
         ["cargo", "run", "--quiet", "--", str(c_file), "--arch", arch],
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE
+        stderr=subprocess.PIPE,
     )
     success = result.returncode == 0
     if expect_success and not success:
@@ -154,7 +158,7 @@ def main():
         passed = 0
         failed = 0
 
-        examples_dir =Path("examples")
+        examples_dir = Path("examples")
         for f in examples_dir.glob("*.c"):
             total += 1
             if run_test(f, expect_success=True, arch=arch):

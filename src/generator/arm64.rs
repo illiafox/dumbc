@@ -1,5 +1,4 @@
 use crate::ast::BlockItem::{Decl, Stmt};
-use crate::ast::Declaration::Declare;
 use crate::ast::Expr::{Assign, BinOp, Conditional};
 use crate::ast::{BinaryOp, BlockItem, Expr, Program, Statement, UnaryOp};
 use crate::generator::allocator::{Allocator, Variable};
@@ -204,7 +203,7 @@ fn generate_expr(g: &mut Generator, expr: &Expr) -> Result<(), Box<dyn Error>> {
             var.emit_store_from_w0(g.output)?
         } // op => panic!("op {op} is not supported"),
 
-        Conditional(cond, then, els) => {
+        Conditional { cond, then, els } => {
             let else_label = g.labels.next("_else");
             let post_conditional = g.labels.next("_post_conditional");
 
@@ -237,7 +236,7 @@ fn generate_stmt(g: &mut Generator, stmt: &Statement) -> Result<(), Box<dyn Erro
             writeln!(g.output, "bl\tbingus")?;
             Ok(())
         }
-        Statement::If(cond, then, els) => {
+        Statement::If { cond, then, els } => {
             let else_label = g.labels.next("_else");
             let post_conditional = g.labels.next("_post_conditional");
 
@@ -265,7 +264,7 @@ fn generate_stmt(g: &mut Generator, stmt: &Statement) -> Result<(), Box<dyn Erro
 fn generate_block_item(g: &mut Generator, block_item: &BlockItem) -> Result<(), Box<dyn Error>> {
     match block_item {
         Stmt(stmt) => generate_stmt(g, stmt),
-        Decl(Declare(name, expr)) => {
+        Decl(name, expr) => {
             let var = g.allocator.allocate(name.clone(), 4);
             g.debug(format!("var {var:?} allocated"));
             if let Some(expr) = expr {
@@ -285,7 +284,7 @@ fn generate_block(g: &mut Generator, items: &[BlockItem]) -> Result<(), Box<dyn 
 
     for item in items {
         match item {
-            Decl(Declare(name, _)) => {
+            Decl(name, _) => {
                 if !current_scope.insert(name.clone()) {
                     return Err(format!("variable {} redeclared in same block", name).into());
                 }
@@ -306,16 +305,18 @@ fn generate_block(g: &mut Generator, items: &[BlockItem]) -> Result<(), Box<dyn 
 fn ends_with_return(item: &BlockItem) -> bool {
     match item {
         Stmt(stmt) => stmt_ends_with_return(stmt),
-        Decl(_) => false,
+        Decl(_, _) => false,
     }
 }
 
 fn stmt_ends_with_return(stmt: &Statement) -> bool {
     match stmt {
         Statement::Return(_) => true,
-        Statement::If(_, then, Some(else_)) => {
-            stmt_ends_with_return(then) && stmt_ends_with_return(else_)
-        }
+        Statement::If {
+            cond: _,
+            then,
+            els: Some(else_),
+        } => stmt_ends_with_return(then) && stmt_ends_with_return(else_),
         Statement::Compound(items) => items
             .iter()
             .rev()
@@ -335,11 +336,11 @@ pub fn generate(program: &Program, platform: &str, debug: bool) -> Result<String
         _ => return Err(format!("Unsupported platform {platform}").into()),
     };
 
-    let free_use_registers = vec![
+    let free_use_registers = &[
         "w19", "w20", "w21", "w22", "w23", "w24", "w25", "w26", "w27", "w28",
     ];
 
-    let mut dry_allocator = Allocator::new(free_use_registers.clone());
+    let mut dry_allocator = Allocator::new(free_use_registers);
     let mut max_stack = 0;
     simulate_stack_usage(&function.block_items, &mut dry_allocator, &mut max_stack);
 
@@ -371,7 +372,7 @@ pub fn generate(program: &Program, platform: &str, debug: bool) -> Result<String
     // save all callee-saved registers (x19-x28) we plan to use for locals
     // (five 128-bit pushes = 80 bytes, keep the order!)
 
-    let x_registers = [
+    let x_registers = &[
         // why x19-x28 and not w19-w28? because they are the same physical register, but have different view
         // x19	64 bit	the whole general-purpose register 19
         // w19	32 bit	lower half of that same register
@@ -381,7 +382,7 @@ pub fn generate(program: &Program, platform: &str, debug: bool) -> Result<String
         ["x25", "x26"],
         ["x27", "x28"],
     ];
-    for [ra, rb] in &x_registers {
+    for [ra, rb] in x_registers {
         writeln!(output, "stp\t{}, {}, [sp, #-16]!", ra, rb)?;
     }
 
@@ -396,7 +397,7 @@ pub fn generate(program: &Program, platform: &str, debug: bool) -> Result<String
     let mut generator = Generator {
         output: &mut output,
         labels: &mut labels,
-        allocator: Allocator::new(free_use_registers),
+        allocator: Allocator::new(free_use_registers.as_slice()),
         epilogue: epilogue.clone(),
         debug_enabled: debug,
     };

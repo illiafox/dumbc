@@ -1,6 +1,5 @@
-use crate::ast::BlockItem::Decl;
 use crate::ast::Expr::{Assign, BinOp, Const, Var};
-use crate::ast::{BinaryOp, BlockItem, Declaration, Expr, Statement, UnaryOp};
+use crate::ast::{BinaryOp, BlockItem, Expr, Statement, UnaryOp};
 use crate::lexer::Token;
 use crate::parser::parse::{expect, expect_ident};
 
@@ -177,20 +176,24 @@ fn parse_conditional_expr(tokens: &[Token], pos: &mut usize) -> Result<Expr, Str
         let then_expr = parse_expr(tokens, pos)?;
         expect(tokens, pos, &Token::Colon)?;
         let else_expr = parse_conditional_expr(tokens, pos)?; // right-associative
-        Ok(Expr::Conditional(
-            Box::new(condition),
-            Box::new(then_expr),
-            Box::new(else_expr),
-        ))
+        Ok(Expr::Conditional {
+            cond: Box::new(condition),
+            then: Box::new(then_expr),
+            els: Box::new(else_expr),
+        })
     } else {
         Ok(condition)
     }
 }
 
-fn assign_bin_op(op: BinaryOp, var_name: String, expr: Expr) -> Expr {
+fn assign_bin_op(op: BinaryOp, var_name: &str, expr: Expr) -> Expr {
     Assign(
-        var_name.clone(),
-        Box::new(BinOp(op, Box::new(Var(var_name.clone())), Box::new(expr))),
+        var_name.to_string(),
+        Box::new(BinOp(
+            op,
+            Box::new(Var(var_name.to_string())),
+            Box::new(expr),
+        )),
     )
 }
 
@@ -214,27 +217,24 @@ pub fn parse_expr(tokens: &[Token], pos: &mut usize) -> Result<Expr, String> {
     if let Some(Token::Identifier(name)) = tokens.get(*pos) {
         match tokens.get(*pos + 1) {
             Some(&Token::Equal) => {
-                let name = name.clone();
                 *pos += 2;
                 let rhs = parse_expr(tokens, pos)?;
-                return Ok(Assign(name, Box::new(rhs)));
+                return Ok(Assign(name.to_string(), Box::new(rhs)));
             }
             Some(&Token::PlusPlus) => {
                 *pos += 2;
-                return Ok(assign_bin_op(BinaryOp::Add, name.clone(), Const(1)));
+                return Ok(assign_bin_op(BinaryOp::Add, name, Const(1)));
             }
             Some(&Token::MinusMinus) => {
-                let name = name.clone();
                 *pos += 2;
-                return Ok(assign_bin_op(BinaryOp::Sub, name.clone(), Const(1)));
+                return Ok(assign_bin_op(BinaryOp::Sub, name, Const(1)));
             }
 
             Some(token) => {
                 if let Some(bin_op) = token_to_binop(token) {
-                    let name = name.clone();
                     *pos += 2;
                     let rhs = parse_expr(tokens, pos)?;
-                    return Ok(assign_bin_op(bin_op, name.clone(), rhs));
+                    return Ok(assign_bin_op(bin_op, name, rhs));
                 }
             }
 
@@ -245,7 +245,7 @@ pub fn parse_expr(tokens: &[Token], pos: &mut usize) -> Result<Expr, String> {
     parse_conditional_expr(tokens, pos)
 }
 
-fn parse_declaration_list(tokens: &[Token], pos: &mut usize) -> Result<Vec<Declaration>, String> {
+fn parse_declaration_list(tokens: &[Token], pos: &mut usize) -> Result<Vec<BlockItem>, String> {
     let mut decls = Vec::new();
 
     loop {
@@ -256,12 +256,11 @@ fn parse_declaration_list(tokens: &[Token], pos: &mut usize) -> Result<Vec<Decla
         } else {
             None
         };
-        decls.push(Declaration::Declare(name, expr));
+        decls.push(BlockItem::Decl(name, expr));
 
         match tokens.get(*pos) {
             Some(Token::Comma) => {
                 *pos += 1;
-                continue;
             }
             Some(Token::Semicolon) => {
                 *pos += 1;
@@ -309,7 +308,11 @@ pub fn parse_statement(tokens: &[Token], pos: &mut usize) -> Result<Statement, S
                 None
             };
 
-            Ok(Statement::If(condition, if_branch, else_branch))
+            Ok(Statement::If {
+                cond: condition,
+                then: if_branch,
+                els: else_branch,
+            })
         }
         Some(Token::LBrace) => {
             // begin compound block
@@ -336,7 +339,7 @@ pub fn parse_block_items(tokens: &[Token], pos: &mut usize) -> Result<Vec<BlockI
         Some(Token::KeywordInt) => {
             *pos += 1;
             let decls = parse_declaration_list(tokens, pos)?;
-            Ok(decls.iter().map(|d| Decl(d.clone())).collect())
+            Ok(decls)
         }
 
         _ => {

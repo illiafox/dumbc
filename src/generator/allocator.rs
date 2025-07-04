@@ -14,10 +14,13 @@ pub struct Allocator {
 }
 
 impl Allocator {
-    pub fn new(registers: Vec<&str>) -> Self {
+    pub fn new(registers: &[&str]) -> Self {
         Self {
             next_stack_offset: 0,
-            used_registers: registers.iter().cloned().map(str::to_string).collect(),
+            used_registers: registers
+                .iter()
+                .map(std::string::ToString::to_string)
+                .collect(),
             vars: HashMap::new(),
         }
     }

@@ -2,18 +2,18 @@ use crate::lexer::Token;
 use std::iter::Peekable;
 use std::str::Chars;
 
-fn is_identifier_char(c: &char) -> bool {
-    c.is_alphanumeric() || *c == '_'
+fn is_identifier_char(c: char) -> bool {
+    c.is_alphanumeric() || c == '_'
 }
 
 fn consume_until<F>(chars: &mut Peekable<Chars>, condition: F) -> String
 where
-    F: Fn(&char) -> bool,
+    F: Fn(char) -> bool,
 {
     let mut ident = String::new();
 
     while let Some(next_ch) = chars.peek() {
-        if !condition(next_ch) {
+        if !condition(*next_ch) {
             break;
         }
         ident.push(*next_ch);
@@ -56,7 +56,7 @@ fn skip_comment_if_present(chars: &mut Peekable<Chars>) -> Result<bool, String> 
                                 break;
                             }
                         }
-                        Some(_) => continue,
+                        Some(_) => {}
                         None => return Err("Unterminated block comment".into()),
                     }
                 }
@@ -72,17 +72,10 @@ fn skip_comment_if_present(chars: &mut Peekable<Chars>) -> Result<bool, String> 
 fn match_operator(chars: &mut Peekable<Chars>, matches: &[(&str, Token)]) -> Option<Token> {
     for (symbol, token) in matches {
         let mut lookahead = chars.clone();
-        let mut matched = true;
 
-        for expected_ch in symbol.chars() {
-            match lookahead.next() {
-                Some(actual_ch) if actual_ch == expected_ch => continue,
-                _ => {
-                    matched = false;
-                    break;
-                }
-            }
-        }
+        let matched = symbol
+            .chars()
+            .all(|expected| lookahead.next().is_some_and(|actual| expected == actual));
 
         if matched {
             for _ in 0..symbol.len() {
@@ -119,7 +112,7 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
         }
 
         if ch.is_ascii_digit() {
-            let num = consume_until(&mut chars, char::is_ascii_digit);
+            let num = consume_until(&mut chars, |c: char| c.is_ascii_digit());
             let value: i32 = num.parse().map_err(|_| "Invalid integer")?;
             tokens.push(Token::IntLiteral(value));
             continue;
@@ -180,7 +173,6 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
             ],
         ) {
             tokens.push(token);
-            continue;
         } else {
             return Err(format!("Unrecognized character '{}'", ch));
         }
@@ -200,8 +192,8 @@ mod tests {
         let tokens = lex(code).unwrap();
 
         assert_eq!(
-            tokens,
-            vec![
+            &tokens,
+            &[
                 Token::KeywordInt,
                 Token::Identifier("main".into()),
                 Token::LParen,
@@ -221,8 +213,8 @@ mod tests {
         let tokens = lex(code).unwrap();
 
         assert_eq!(
-            tokens,
-            vec![
+            &tokens,
+            &[
                 Token::KeywordInt,
                 Token::Identifier("main".into()),
                 Token::LParen,
@@ -249,8 +241,8 @@ mod tests {
         let tokens = lex(code).unwrap();
 
         assert_eq!(
-            tokens,
-            vec![
+            &tokens,
+            &[
                 Token::KeywordInt,
                 Token::Identifier("_main_123".into()),
                 Token::LParen,
