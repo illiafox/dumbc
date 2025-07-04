@@ -106,6 +106,11 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
                 "return" => tokens.push(Token::KeywordReturn),
                 "if" => tokens.push(Token::KeywordIf),
                 "else" => tokens.push(Token::KeywordElse),
+                "while" => tokens.push(Token::KeywordWhile),
+                "for" => tokens.push(Token::KeywordFor),
+                "do" => tokens.push(Token::KeywordDo),
+                "break" => tokens.push(Token::KeywordBreak),
+                "continue" => tokens.push(Token::KeywordContinue),
                 _ => tokens.push(Token::Identifier(ident)),
             }
             continue;

@@ -15,6 +15,16 @@ pub enum Token {
     KeywordIf,
     /// Literal "else"
     KeywordElse,
+    /// Literal "while"
+    KeywordWhile,
+    /// Literal "for"
+    KeywordFor,
+    /// Literal "do"
+    KeywordDo,
+    /// Literal "break"
+    KeywordBreak,
+    /// Literal "continue"
+    KeywordContinue,
 
     /// Identifier, such as "main"
     Identifier(String),

@@ -1,6 +1,8 @@
 use crate::ast::BlockItem::{Decl, Stmt};
+use crate::ast::Declaration::Declare;
 use crate::ast::Expr::{Assign, BinOp, Conditional};
-use crate::ast::{BinaryOp, BlockItem, Expr, Program, Statement, UnaryOp};
+use crate::ast::Statement::Continue;
+use crate::ast::{BinaryOp, BlockItem, Declaration, Expr, Program, Statement, UnaryOp};
 use crate::generator::allocator::{Allocator, Variable};
 use crate::generator::bingus::is_bingus_used;
 use crate::generator::label::LabelGenerator;
@@ -71,6 +73,11 @@ impl StackTracker {
         // TODO: add dynamic scope
         Ok(())
     }
+}
+
+struct Context {
+    break_label: Option<String>,
+    continue_label: Option<String>,
 }
 
 fn generate_expr(g: &mut Generator, expr: &Expr) -> Result<(), Box<dyn Error>> {
@@ -224,9 +231,15 @@ fn generate_expr(g: &mut Generator, expr: &Expr) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn generate_stmt(g: &mut Generator, stmt: &Statement) -> Result<(), Box<dyn Error>> {
+fn generate_stmt(
+    ctx: &mut Context,
+    g: &mut Generator,
+    stmt: &Statement,
+) -> Result<(), Box<dyn Error>> {
     match stmt {
-        Statement::Expr(e) => generate_expr(g, e),
+        Statement::Expr(Some(e)) => generate_expr(g, e),
+        Statement::Expr(None) => Ok(()),
+
         Statement::Return(r) => {
             generate_expr(g, r)?;
             writeln!(g.output, "b\t{}", g.epilogue).map_err(Into::into)
@@ -244,12 +257,12 @@ fn generate_stmt(g: &mut Generator, stmt: &Statement) -> Result<(), Box<dyn Erro
             writeln!(g.output, "cmp\tw0, #0")?; // compare e1 cond zero
             writeln!(g.output, "beq\t{}", else_label)?; // if e1 == 0 (false), jump to else (e3)
 
-            generate_stmt(g, then)?; // evaluate e2
+            generate_stmt(ctx, g, then)?; // evaluate e2
             writeln!(g.output, "b\t{}", post_conditional)?; // skip e3
 
             writeln!(g.output, "{}:", else_label)?;
             if let Some(els) = els {
-                generate_stmt(g, els)?; // evaluate else (e3)
+                generate_stmt(ctx, g, els)?; // evaluate else (e3)
             }
             // if els is None, it would just go to post_conditional
             // TODO: do not emit else_label if els.is_none()
@@ -257,14 +270,145 @@ fn generate_stmt(g: &mut Generator, stmt: &Statement) -> Result<(), Box<dyn Erro
             writeln!(g.output, "{}:", post_conditional)?;
             Ok(())
         }
-        Statement::Compound(block_items) => generate_block(g, block_items),
+        Statement::Compound(block_items) => generate_block(ctx, g, block_items),
+
+        Statement::While { cond, body } => {
+            let start = g.labels.next("_while");
+            let continue_label = g.labels.next("_while_continue");
+            let finish = g.labels.next("_while_end");
+
+            writeln!(g.output, "{}:", start)?;
+            generate_expr(g, cond)?; // evaluate cond
+
+            writeln!(g.output, "cmp\tw0, #0")?; // compare cond with zero
+            writeln!(g.output, "beq\t{}", finish)?; // if cond == 0 (false), jump to finish
+
+            ctx.break_label = Some(finish.clone());
+            ctx.continue_label = Some(continue_label.clone());
+
+            writeln!(g.output, "{}:", continue_label)?;
+            generate_statement_in_new_scope(ctx, g, body)?; // evaluate body
+
+            writeln!(g.output, "b\t{}", start)?; // jump back to start
+
+            writeln!(g.output, "{}:", finish)?;
+            Ok(())
+        }
+
+        Statement::Do { cond, body } => {
+            let start = g.labels.next("_do_while");
+            let continue_label = g.labels.next("_do_while_continue");
+            let finish = g.labels.next("_do_while_end");
+
+            writeln!(g.output, "{}:", start)?;
+
+            ctx.break_label = Some(finish.clone());
+            ctx.continue_label = Some(continue_label.clone());
+
+            writeln!(g.output, "{}:", continue_label)?;
+            generate_statement_in_new_scope(ctx, g, body)?; // evaluate body
+
+            generate_expr(g, cond)?; // evaluate cond
+            writeln!(g.output, "cmp\tw0, #0")?; // compare cond with zero
+            writeln!(g.output, "beq\t{}", finish)?; // if cond == 0 (false), jump to finish
+            writeln!(g.output, "b\t{}", start)?; // jump back to start
+
+            writeln!(g.output, "{}:", finish)?;
+            Ok(())
+        }
+
+        Statement::For {
+            init,
+            cond,
+            post,
+            body,
+        } => {
+            let start = g.labels.next("_for");
+            let continue_label = g.labels.next("_for_continue");
+            let finish = g.labels.next("_for_end");
+
+            if let Some(init) = init {
+                generate_expr(g, init)?;
+            }
+
+            writeln!(g.output, "{}:", start)?;
+            generate_expr(g, cond)?; // evaluate cond
+
+            writeln!(g.output, "cmp\tw0, #0")?; // compare cond with zero
+            writeln!(g.output, "beq\t{}", finish)?; // if cond == 0 (false), jump to finish
+
+            ctx.break_label = Some(finish.clone());
+            ctx.continue_label = Some(continue_label.clone());
+            generate_statement_in_new_scope(ctx, g, body)?; // evaluate body
+
+            writeln!(g.output, "{}:", continue_label)?;
+            if let Some(post) = post {
+                generate_expr(g, post)?; // evaluate post expression
+            }
+            writeln!(g.output, "b\t{}", start)?; // jump back to start
+
+            writeln!(g.output, "{}:", finish)?;
+            Ok(())
+        }
+        Statement::ForDecl {
+            decl,
+            cond,
+            post,
+            body,
+        } => {
+            let old_allocator = g.allocator.clone();
+            let tracker = StackTracker::begin(g); // keep stack accounting
+
+            generate_declaration(g, decl)?; // alloc ‘i’ inside *this* scope
+
+            let start = g.labels.next("_for_decl");
+            let continue_label = g.labels.next("_for_decl_continue");
+            let finish = g.labels.next("_for_decl_end");
+
+            writeln!(g.output, "{}:", start)?;
+            generate_expr(g, cond)?;
+            writeln!(g.output, "cmp\tw0, #0")?;
+            writeln!(g.output, "beq\t{}", finish)?;
+
+            ctx.break_label = Some(finish.clone());
+            ctx.continue_label = Some(continue_label.clone());
+            generate_statement_in_new_scope(ctx, g, body)?;
+
+            writeln!(g.output, "{}:", continue_label)?;
+            if let Some(post) = post {
+                generate_expr(g, post)?;
+            }
+            writeln!(g.output, "b\t{}", start)?;
+            writeln!(g.output, "{}:", finish)?;
+
+            tracker.end_scope(g)?;
+            g.allocator = old_allocator;
+            Ok(())
+        }
+
+        Statement::Break => {
+            let label = ctx
+                .break_label
+                .as_deref()
+                .ok_or("`break` used outside of loop")?;
+            writeln!(g.output, "b\t{}", label)?;
+            Ok(())
+        }
+
+        Continue => {
+            let label = ctx
+                .continue_label
+                .as_deref()
+                .ok_or("`continue` used outside of loop")?;
+            writeln!(g.output, "b\t{}", label)?;
+            Ok(())
+        }
     }
 }
 
-fn generate_block_item(g: &mut Generator, block_item: &BlockItem) -> Result<(), Box<dyn Error>> {
-    match block_item {
-        Stmt(stmt) => generate_stmt(g, stmt),
-        Decl(name, expr) => {
+fn generate_declaration(g: &mut Generator, decl: &Declaration) -> Result<(), Box<dyn Error>> {
+    match decl {
+        Declare(name, expr) => {
             let var = g.allocator.allocate(name.clone(), 4);
             g.debug(format!("var {var:?} allocated"));
             if let Some(expr) = expr {
@@ -276,7 +420,39 @@ fn generate_block_item(g: &mut Generator, block_item: &BlockItem) -> Result<(), 
     }
 }
 
-fn generate_block(g: &mut Generator, items: &[BlockItem]) -> Result<(), Box<dyn Error>> {
+fn generate_block_item(
+    ctx: &mut Context,
+    g: &mut Generator,
+    block_item: &BlockItem,
+) -> Result<(), Box<dyn Error>> {
+    match block_item {
+        Stmt(stmt) => generate_stmt(ctx, g, stmt),
+        Decl(decl) => generate_declaration(g, decl),
+    }
+}
+
+fn generate_statement_in_new_scope(
+    ctx: &mut Context,
+    g: &mut Generator,
+    stmt: &Statement,
+) -> Result<(), Box<dyn Error>> {
+    let old_allocator = g.allocator.clone();
+
+    let tracker = StackTracker::begin(g);
+
+    generate_stmt(ctx, g, stmt)?;
+
+    tracker.end_scope(g)?;
+    g.allocator = old_allocator;
+
+    Ok(())
+}
+
+fn generate_block(
+    ctx: &mut Context,
+    g: &mut Generator,
+    items: &[BlockItem],
+) -> Result<(), Box<dyn Error>> {
     let old_allocator = g.allocator.clone();
     let mut current_scope = HashSet::new();
 
@@ -284,14 +460,14 @@ fn generate_block(g: &mut Generator, items: &[BlockItem]) -> Result<(), Box<dyn 
 
     for item in items {
         match item {
-            Decl(name, _) => {
+            Decl(Declare(name, _)) => {
                 if !current_scope.insert(name.clone()) {
                     return Err(format!("variable {} redeclared in same block", name).into());
                 }
-                generate_block_item(g, item)?;
+                generate_block_item(ctx, g, item)?;
             }
             Stmt(stmt) => {
-                generate_stmt(g, stmt)?;
+                generate_stmt(ctx, g, stmt)?;
             }
         }
     }
@@ -305,7 +481,7 @@ fn generate_block(g: &mut Generator, items: &[BlockItem]) -> Result<(), Box<dyn 
 fn ends_with_return(item: &BlockItem) -> bool {
     match item {
         Stmt(stmt) => stmt_ends_with_return(stmt),
-        Decl(_, _) => false,
+        Decl(Declare(_, _)) => false,
     }
 }
 
@@ -408,7 +584,13 @@ pub fn generate(program: &Program, platform: &str, debug: bool) -> Result<String
         .rev()
         .find(|item| matches!(item, Stmt(_)))
         .is_some_and(ends_with_return);
-    generate_block(&mut generator, &function.block_items)?;
+
+    let mut ctx = Context {
+        break_label: None,
+        continue_label: None,
+    };
+
+    generate_block(&mut ctx, &mut generator, &function.block_items)?;
 
     // emit default return if none provided
     if !saw_return {

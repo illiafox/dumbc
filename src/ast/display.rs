@@ -1,4 +1,5 @@
-use crate::ast::{BinaryOp, BlockItem, Expr, Function, Program, Statement, UnaryOp};
+use crate::ast::Declaration::Declare;
+use crate::ast::{BinaryOp, BlockItem, Declaration, Expr, Function, Program, Statement, UnaryOp};
 use std::fmt;
 
 impl fmt::Display for Expr {
@@ -63,7 +64,13 @@ impl fmt::Display for Statement {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Statement::Return(expr) => writeln!(f, "return {}", expr),
-            Statement::Expr(expr) => writeln!(f, "{}", expr),
+            Statement::Expr(expr) => {
+                if let Some(expr) = expr {
+                    writeln!(f, "{}", expr)
+                } else {
+                    writeln!(f, "null expr")
+                }
+            }
             Statement::Bingus(expr) => writeln!(f, "bingus {}", expr),
             Statement::If { cond, then, els } => {
                 if let Some(else_expr) = els {
@@ -79,6 +86,55 @@ impl fmt::Display for Statement {
                 }
                 writeln!(f, "}}")
             }
+
+            Statement::For {
+                init,
+                cond,
+                post,
+                body,
+            } => {
+                writeln!(
+                    f,
+                    "for ({}; {}; {}) {{",
+                    init.as_ref().map_or("".to_string(), |e| format!("{}", e)),
+                    cond,
+                    post.as_ref().map_or("".to_string(), |e| format!("{}", e)),
+                )?;
+                writeln!(f, "\t{body}")?;
+                writeln!(f, "}}")
+            }
+
+            Statement::ForDecl {
+                decl,
+                cond,
+                post,
+                body,
+            } => {
+                writeln!(
+                    f,
+                    "for ({}; {}; {}) {{",
+                    decl,
+                    cond,
+                    post.as_ref().map_or("".to_string(), |e| format!("{}", e)),
+                )?;
+                writeln!(f, "\t{body}")?;
+                writeln!(f, "}}")
+            }
+
+            Statement::While { cond, body } => {
+                writeln!(f, "while ({cond}) {{")?;
+                writeln!(f, "\t{body}")?;
+                writeln!(f, "}}")
+            }
+
+            Statement::Do { body, cond } => {
+                writeln!(f, "do {{")?;
+                writeln!(f, "\t{body}")?;
+                writeln!(f, "}} while ({cond})")
+            }
+
+            Statement::Break => writeln!(f, "break"),
+            Statement::Continue => writeln!(f, "continue"),
         }
     }
 }
@@ -87,8 +143,21 @@ impl fmt::Display for BlockItem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             BlockItem::Stmt(stmt) => writeln!(f, "stmt {}", stmt),
-            BlockItem::Decl(name, Some(expr)) => writeln!(f, "decl declare {name} = {expr}"),
-            BlockItem::Decl(name, None) => writeln!(f, "decl declare {name}"),
+            BlockItem::Decl(decl) => writeln!(f, "decl {decl}"),
+        }
+    }
+}
+
+impl fmt::Display for Declaration {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Declare(name, expr) => {
+                if let Some(expr) = expr {
+                    writeln!(f, "declare {} = {}", name, expr)
+                } else {
+                    writeln!(f, "declare {}", name)
+                }
+            }
         }
     }
 }
