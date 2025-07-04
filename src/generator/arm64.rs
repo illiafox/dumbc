@@ -337,11 +337,11 @@ pub fn generate(program: &Program, platform: &str, debug: bool) -> Result<String
         _ => return Err(format!("Unsupported platform {platform}").into()),
     };
 
-    let free_use_registers = vec![
+    let free_use_registers = &[
         "w19", "w20", "w21", "w22", "w23", "w24", "w25", "w26", "w27", "w28",
     ];
 
-    let mut dry_allocator = Allocator::new(&free_use_registers);
+    let mut dry_allocator = Allocator::new(free_use_registers);
     let mut max_stack = 0;
     simulate_stack_usage(&function.block_items, &mut dry_allocator, &mut max_stack);
 
@@ -373,7 +373,7 @@ pub fn generate(program: &Program, platform: &str, debug: bool) -> Result<String
     // save all callee-saved registers (x19-x28) we plan to use for locals
     // (five 128-bit pushes = 80 bytes, keep the order!)
 
-    let x_registers = [
+    let x_registers = &[
         // why x19-x28 and not w19-w28? because they are the same physical register, but have different view
         // x19	64 bit	the whole general-purpose register 19
         // w19	32 bit	lower half of that same register
@@ -383,7 +383,7 @@ pub fn generate(program: &Program, platform: &str, debug: bool) -> Result<String
         ["x25", "x26"],
         ["x27", "x28"],
     ];
-    for [ra, rb] in &x_registers {
+    for [ra, rb] in x_registers {
         writeln!(output, "stp\t{}, {}, [sp, #-16]!", ra, rb)?;
     }
 
@@ -398,7 +398,7 @@ pub fn generate(program: &Program, platform: &str, debug: bool) -> Result<String
     let mut generator = Generator {
         output: &mut output,
         labels: &mut labels,
-        allocator: Allocator::new(&free_use_registers),
+        allocator: Allocator::new(free_use_registers.as_slice()),
         epilogue: epilogue.clone(),
         debug_enabled: debug,
     };

@@ -200,8 +200,8 @@ mod tests {
         let tokens = lex(code).unwrap();
 
         assert_eq!(
-            tokens,
-            vec![
+            &tokens,
+            &[
                 Token::KeywordInt,
                 Token::Identifier("main".into()),
                 Token::LParen,
@@ -221,8 +221,8 @@ mod tests {
         let tokens = lex(code).unwrap();
 
         assert_eq!(
-            tokens,
-            vec![
+            &tokens,
+            &[
                 Token::KeywordInt,
                 Token::Identifier("main".into()),
                 Token::LParen,
@@ -249,8 +249,8 @@ mod tests {
         let tokens = lex(code).unwrap();
 
         assert_eq!(
-            tokens,
-            vec![
+            &tokens,
+            &[
                 Token::KeywordInt,
                 Token::Identifier("_main_123".into()),
                 Token::LParen,
