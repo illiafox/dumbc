@@ -75,7 +75,7 @@ fn match_operator(chars: &mut Peekable<Chars>, matches: &[(&str, Token)]) -> Opt
 
         let matched = symbol
             .chars()
-            .any(|expected| lookahead.next().is_some_and(|actual| expected == actual));
+            .all(|expected| lookahead.next().is_some_and(|actual| expected == actual));
 
         if matched {
             for _ in 0..symbol.len() {
