@@ -20,9 +20,9 @@ pub fn simulate_stack_usage(items: &[BlockItem], allocator: &mut Allocator, max:
 
 fn simulate_stmt_stack(stmt: &Statement, allocator: &mut Allocator, max: &mut i32) {
     match stmt {
-        Statement::If(_, then, else_) => {
+        Statement::If { cond: _, then, els } => {
             simulate_stmt_stack(then, allocator, max);
-            if let Some(els) = else_ {
+            if let Some(els) = els {
                 simulate_stmt_stack(els, allocator, max);
             }
         }

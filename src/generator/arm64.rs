@@ -204,7 +204,7 @@ fn generate_expr(g: &mut Generator, expr: &Expr) -> Result<(), Box<dyn Error>> {
             var.emit_store_from_w0(g.output)?
         } // op => panic!("op {op} is not supported"),
 
-        Conditional(cond, then, els) => {
+        Conditional { cond, then, els } => {
             let else_label = g.labels.next("_else");
             let post_conditional = g.labels.next("_post_conditional");
 
@@ -237,7 +237,7 @@ fn generate_stmt(g: &mut Generator, stmt: &Statement) -> Result<(), Box<dyn Erro
             writeln!(g.output, "bl\tbingus")?;
             Ok(())
         }
-        Statement::If(cond, then, els) => {
+        Statement::If { cond, then, els } => {
             let else_label = g.labels.next("_else");
             let post_conditional = g.labels.next("_post_conditional");
 
@@ -313,9 +313,11 @@ fn ends_with_return(item: &BlockItem) -> bool {
 fn stmt_ends_with_return(stmt: &Statement) -> bool {
     match stmt {
         Statement::Return(_) => true,
-        Statement::If(_, then, Some(else_)) => {
-            stmt_ends_with_return(then) && stmt_ends_with_return(else_)
-        }
+        Statement::If {
+            cond: _,
+            then,
+            els: Some(else_),
+        } => stmt_ends_with_return(then) && stmt_ends_with_return(else_),
         Statement::Compound(items) => items
             .iter()
             .rev()

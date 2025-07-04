@@ -177,11 +177,11 @@ fn parse_conditional_expr(tokens: &[Token], pos: &mut usize) -> Result<Expr, Str
         let then_expr = parse_expr(tokens, pos)?;
         expect(tokens, pos, &Token::Colon)?;
         let else_expr = parse_conditional_expr(tokens, pos)?; // right-associative
-        Ok(Expr::Conditional(
-            Box::new(condition),
-            Box::new(then_expr),
-            Box::new(else_expr),
-        ))
+        Ok(Expr::Conditional {
+            cond: Box::new(condition),
+            then: Box::new(then_expr),
+            els: Box::new(else_expr),
+        })
     } else {
         Ok(condition)
     }
@@ -309,7 +309,11 @@ pub fn parse_statement(tokens: &[Token], pos: &mut usize) -> Result<Statement, S
                 None
             };
 
-            Ok(Statement::If(condition, if_branch, else_branch))
+            Ok(Statement::If {
+                cond: condition,
+                then: if_branch,
+                els: else_branch,
+            })
         }
         Some(Token::LBrace) => {
             // begin compound block

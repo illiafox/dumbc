@@ -10,7 +10,7 @@ impl fmt::Display for Expr {
             Expr::BinOp(op, lhs, rhs) => write!(f, "({} {} {})", lhs, op, rhs),
             Expr::Var(name) => write!(f, "(var {})", name),
             Expr::Assign(name, exp) => write!(f, "{} = {}", name, exp),
-            Expr::Conditional(cond, then, els) => {
+            Expr::Conditional { cond, then, els } => {
                 write!(f, "({} ? {} : {})", cond, then, els)
             }
         }
@@ -66,8 +66,8 @@ impl fmt::Display for Statement {
             Statement::Return(expr) => writeln!(f, "return {}", expr),
             Statement::Expr(expr) => writeln!(f, "{}", expr),
             Statement::Bingus(expr) => writeln!(f, "bingus {}", expr),
-            Statement::If(cond, then, else_) => {
-                if let Some(else_expr) = else_ {
+            Statement::If { cond, then, els } => {
+                if let Some(else_expr) = els {
                     writeln!(f, "if {} {} {}", cond, then, else_expr)
                 } else {
                     writeln!(f, "if {} {}", cond, then)

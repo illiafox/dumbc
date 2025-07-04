@@ -1,72 +1,127 @@
+/// Token type, emitted by the lexer.
+/// Semantic meaning is further documented in the [AST] section,
+/// unless it's not; some unambiguous tokens are explained here anyway.
+///
+/// [AST]: crate::ast::types
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
-    // Keywords
-    KeywordInt,    // "int"
-    KeywordReturn, // "return"
-    KeywordBingus, // "bingus"
-    KeywordIf,     // "if"
-    KeywordElse,   // "else"
+    /// Literal "int"
+    KeywordInt,
+    /// Literal "return"
+    KeywordReturn,
+    /// Literal "bingus"
+    KeywordBingus,
+    /// Literal "if"
+    KeywordIf,
+    /// Literal "else"
+    KeywordElse,
 
-    // Identifiers and literals
-    Identifier(String), // e.g. "main"
-    IntLiteral(i32),    // e.g. 123
+    /// Identifier, such as "main"
+    Identifier(String),
+    /// An `int` literal, such as 123
+    IntLiteral(i32),
 
-    // Punctuation
-    LParen,    // (
-    RParen,    // )
-    LBrace,    // {
-    RBrace,    // }
-    Semicolon, // ;
+    /// Literal "("
+    LParen,
+    /// Literal ")"
+    RParen,
+    /// Literal "{"
+    LBrace,
+    /// Literal "}"
+    RBrace,
+    /// Literal ";"
+    Semicolon,
 
-    // Unary operators
-    Minus, // -
-    Tilde, // ~
-    Bang,  // !
+    /// Literal "-"
+    Minus,
+    /// Literal "~"
+    Tilde,
+    /// Literal "!"
+    Bang,
 
-    // Binary arithmetic operators
-    Plus,     // +
-    Asterisk, // *
-    Slash,    // /
+    /// Literal "+"
+    Plus,
+    /// Literal "*"
+    Asterisk,
+    /// Literal "/"
+    Slash,
 
-    And,      // &
-    AndEqual, // &=
-    Or,       // |
-    OrEqual,  // |=
-    Xor,      // ^
-    XorEqual, // ^=
+    /// Literal "&"
+    And,
+    /// Literal "&="
+    AndEqual,
+    /// Literal "*"
+    Or,
+    /// Literal "*"
+    OrEqual,
+    /// Literal "*"
+    Xor,
+    /// Literal "*"
+    XorEqual,
 
-    ShiftLeft,       // <<
-    ShiftLeftEqual,  // <<=
-    ShiftRight,      // >>
-    ShiftRightEqual, // >>=
+    /// Literal "<<"
+    ShiftLeft,
+    /// Literal "<<=".
+    /// Binary shorthand left shift assignment
+    ShiftLeftEqual,
+    /// Literal ">>"
+    ShiftRight,
+    /// Literal ">>=".
+    /// Binary shorthand right shift assignment
+    ShiftRightEqual,
 
-    Modulo,      // %
-    ModuloEqual, // %=
+    /// Literal "%"
+    Modulo,
+    /// Literal "%=".
+    /// Binary shorthand modulo assignment
+    ModuloEqual,
 
-    // Logical operators
-    AndAnd, // &&
-    OrOr,   // ||
+    /// Literal "&&"
+    AndAnd,
+    /// Literal "||"
+    OrOr,
 
-    // Comparison operators
-    EqualEqual,   // ==
-    BangEqual,    // !=
-    Less,         // <
-    LessEqual,    // <=
-    Greater,      // >
-    GreaterEqual, // >=
+    /// Literal "=="
+    EqualEqual,
+    /// Literal "!="
+    BangEqual,
+    /// Literal "<"
+    Less,
+    /// Literal "<="
+    LessEqual,
+    /// Literal ">"
+    Greater,
+    /// Literal ">="
+    GreaterEqual,
 
-    PlusEqual,     // +=
-    MinusEqual,    // -=
-    AsteriskEqual, // *=
-    SlashEqual,    // /=
+    /// Literal "+=".
+    /// Binary shorthand addition assignment
+    PlusEqual,
+    /// Literal "-=".
+    /// Binary shorthand substraction assignment
+    MinusEqual,
+    /// Literal "*=".
+    /// Binary shorthand multiplication assignment
+    AsteriskEqual,
+    /// Literal "/=".
+    /// Binary shorthand division assignment
+    SlashEqual,
 
-    Comma, // ,
+    /// Literal ","
+    Comma,
 
-    PlusPlus,   // ++
-    MinusMinus, // --
+    /// Literal "++".
+    /// Unary increment operator
+    PlusPlus,
+    /// Literal "--".
+    /// Unary decrement operator
+    MinusMinus,
 
-    Equal, // =
+    /// Literal "=".
+    Equal,
 
-    Colon,        // :
-    QuestionMark, // ?
+    /// Literal "?" (part of the ternary expression)
+    QuestionMark,
+    /// Literal ":" (part of the ternary expression)
+    Colon,
 }
