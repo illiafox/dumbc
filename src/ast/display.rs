@@ -96,9 +96,9 @@ impl fmt::Display for Statement {
                 writeln!(
                     f,
                     "for ({}; {}; {}) {{",
-                    init.as_ref().map_or("".to_string(), |e| format!("{}", e)),
+                    init.as_ref().map_or(String::new(), |e| format!("{}", e)),
                     cond,
-                    post.as_ref().map_or("".to_string(), |e| format!("{}", e)),
+                    post.as_ref().map_or(String::new(), |e| format!("{}", e)),
                 )?;
                 writeln!(f, "\t{body}")?;
                 writeln!(f, "}}")
@@ -115,7 +115,7 @@ impl fmt::Display for Statement {
                     "for ({}; {}; {}) {{",
                     decl,
                     cond,
-                    post.as_ref().map_or("".to_string(), |e| format!("{}", e)),
+                    post.as_ref().map_or(String::new(), |e| format!("{}", e)),
                 )?;
                 writeln!(f, "\t{body}")?;
                 writeln!(f, "}}")
