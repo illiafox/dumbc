@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-STAGES = [1, 2, 3, 4, 5, 6, 7]
+STAGES = [1, 2, 3, 4, 5, 6, 7, 8]
 TARGET_ARCHS = ["aarch64"]
 BASE = Path("testsuite")
 
