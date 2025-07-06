@@ -1,5 +1,7 @@
+use crate::ast::BlockItem::Decl;
+use crate::ast::Declaration::Declare;
 use crate::ast::Expr::{Assign, BinOp, Const, Var};
-use crate::ast::{BinaryOp, BlockItem, Expr, Statement, UnaryOp};
+use crate::ast::{BinaryOp, BlockItem, Declaration, Expr, Statement, UnaryOp};
 use crate::lexer::Token;
 use crate::parser::parse::{expect, expect_ident};
 
@@ -73,7 +75,7 @@ fn parse_factor(tokens: &[Token], pos: &mut usize) -> Result<Expr, String> {
 
         Some(Token::Identifier(name)) => {
             *pos += 1;
-            Ok(Expr::Var(name.clone()))
+            Ok(Var(name.clone()))
         }
 
         other => Err(format!("expected factor, found {:?}", other)),
@@ -245,18 +247,37 @@ pub fn parse_expr(tokens: &[Token], pos: &mut usize) -> Result<Expr, String> {
     parse_conditional_expr(tokens, pos)
 }
 
+fn parse_declaration(tokens: &[Token], pos: &mut usize) -> Result<Declaration, String> {
+    let name = expect_ident(tokens, pos)?;
+    let expr = if tokens.get(*pos) == Some(&Token::Equal) {
+        *pos += 1;
+        Some(parse_expr(tokens, pos)?)
+    } else {
+        None
+    };
+    Ok(Declare(name, expr))
+}
+
+fn parse_for_declaration(tokens: &[Token], pos: &mut usize) -> Result<Declaration, String> {
+    let decl = parse_declaration(tokens, pos)?;
+
+    match tokens.get(*pos) {
+        Some(Token::Semicolon) => {
+            *pos += 1;
+            Ok(decl)
+        }
+        Some(Token::Comma) => Err("Only one declaration allowed in for-loop initializer".into()),
+        Some(other) => Err(format!("Unexpected token after declaration: {:?}", other)),
+        None => Err("Unexpected end of input after declaration".into()),
+    }
+}
+
 fn parse_declaration_list(tokens: &[Token], pos: &mut usize) -> Result<Vec<BlockItem>, String> {
     let mut decls = Vec::new();
 
     loop {
-        let name = expect_ident(tokens, pos)?;
-        let expr = if tokens.get(*pos) == Some(&Token::Equal) {
-            *pos += 1;
-            Some(parse_expr(tokens, pos)?)
-        } else {
-            None
-        };
-        decls.push(BlockItem::Decl(name, expr));
+        let decl = parse_declaration(tokens, pos)?;
+        decls.push(Decl(decl));
 
         match tokens.get(*pos) {
             Some(Token::Comma) => {
@@ -276,6 +297,27 @@ fn parse_declaration_list(tokens: &[Token], pos: &mut usize) -> Result<Vec<Block
     }
 
     Ok(decls)
+}
+
+/// Used in `do { ... } while ( <expr> )`
+fn parse_expr_in_parens(tokens: &[Token], pos: &mut usize) -> Result<Expr, String> {
+    let e = parse_expr(tokens, pos)?;
+    expect(tokens, pos, &Token::RParen)?;
+    Ok(e)
+}
+
+fn parse_for_cond(tokens: &[Token], pos: &mut usize) -> Result<Expr, String> {
+    match tokens.get(*pos) {
+        Some(Token::Semicolon) => {
+            *pos += 1;
+            Ok(Const(1))
+        }
+        _ => {
+            let e = parse_expr(tokens, pos)?;
+            expect(tokens, pos, &Token::Semicolon)?;
+            Ok(e)
+        }
+    }
 }
 
 pub fn parse_statement(tokens: &[Token], pos: &mut usize) -> Result<Statement, String> {
@@ -314,6 +356,100 @@ pub fn parse_statement(tokens: &[Token], pos: &mut usize) -> Result<Statement, S
                 els: else_branch,
             })
         }
+        Some(Token::KeywordFor) => {
+            *pos += 1;
+            expect(tokens, pos, &Token::LParen)?;
+
+            // ForDecl case
+            if tokens.get(*pos) == Some(&Token::KeywordInt) {
+                *pos += 1;
+                let decl = parse_for_declaration(tokens, pos)?; // this consumes semicolon
+
+                let cond = parse_for_cond(tokens, pos)?;
+
+                let post = if tokens.get(*pos) != Some(&Token::RParen) {
+                    Some(parse_expr(tokens, pos)?)
+                } else {
+                    None
+                };
+                expect(tokens, pos, &Token::RParen)?;
+
+                let body = Box::new(parse_statement(tokens, pos)?);
+
+                Ok(Statement::ForDecl {
+                    decl,
+                    cond,
+                    post,
+                    body,
+                })
+            } else {
+                // For (expression-based)
+                let init = if tokens.get(*pos) == Some(&Token::Semicolon) {
+                    *pos += 1;
+                    None
+                } else {
+                    let e = parse_expr(tokens, pos)?;
+                    expect(tokens, pos, &Token::Semicolon)?;
+                    Some(e)
+                };
+
+                let cond = parse_for_cond(tokens, pos)?;
+
+                let post = if tokens.get(*pos) != Some(&Token::RParen) {
+                    Some(parse_expr(tokens, pos)?)
+                } else {
+                    None
+                };
+                expect(tokens, pos, &Token::RParen)?;
+
+                let body = Box::new(parse_statement(tokens, pos)?);
+
+                Ok(Statement::For {
+                    init,
+                    cond,
+                    post,
+                    body,
+                })
+            }
+        }
+        Some(Token::KeywordWhile) => {
+            *pos += 1;
+            expect(tokens, pos, &Token::LParen)?;
+
+            let cond = if tokens.get(*pos) == Some(&Token::RParen) {
+                Const(1)
+            } else {
+                parse_expr(tokens, pos)?
+            };
+
+            expect(tokens, pos, &Token::RParen)?;
+
+            let body = Box::new(parse_statement(tokens, pos)?);
+            Ok(Statement::While { cond, body })
+        }
+
+        Some(Token::KeywordDo) => {
+            *pos += 1;
+
+            let body = Box::new(parse_statement(tokens, pos)?);
+
+            expect(tokens, pos, &Token::KeywordWhile)?;
+            expect(tokens, pos, &Token::LParen)?;
+            let cond = parse_expr_in_parens(tokens, pos)?;
+            expect(tokens, pos, &Token::Semicolon)?;
+
+            Ok(Statement::Do { body, cond })
+        }
+        Some(Token::KeywordContinue) => {
+            *pos += 1;
+            expect(tokens, pos, &Token::Semicolon)?;
+            Ok(Statement::Continue)
+        }
+        Some(Token::KeywordBreak) => {
+            *pos += 1;
+            expect(tokens, pos, &Token::Semicolon)?;
+            Ok(Statement::Break)
+        }
         Some(Token::LBrace) => {
             // begin compound block
             *pos += 1;
@@ -326,10 +462,14 @@ pub fn parse_statement(tokens: &[Token], pos: &mut usize) -> Result<Statement, S
             Ok(Statement::Compound(block_items))
         }
         Some(Token::RBrace) => Err("Unexpected }".into()),
+        Some(Token::Semicolon) => {
+            *pos += 1;
+            Ok(Statement::Expr(None))
+        }
         _ => {
             let expr = parse_expr(tokens, pos)?;
             expect(tokens, pos, &Token::Semicolon)?;
-            Ok(Statement::Expr(expr))
+            Ok(Statement::Expr(Some(expr)))
         }
     }
 }

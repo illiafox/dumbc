@@ -78,7 +78,7 @@ pub enum Statement {
     /// `return expr;` statement
     Return(Expr),
     /// Arbitrary expression statement
-    Expr(Expr),
+    Expr(Option<Expr>),
     /// "if-then- optional else" block
     If {
         cond: Expr,
@@ -90,6 +90,46 @@ pub enum Statement {
 
     /// Print the value of the [Expr] as an `int`
     Bingus(Expr),
+
+    /// For loop
+    For {
+        init: Option<Expr>,   // initial expression
+        cond: Expr,           // condition
+        post: Option<Expr>,   // post-expression
+        body: Box<Statement>, // body
+    },
+
+    /// For loop with declaration
+    ForDecl {
+        decl: Declaration,    // initial declaration
+        cond: Expr,           // condition
+        post: Option<Expr>,   // post-expression
+        body: Box<Statement>, // body
+    },
+
+    /// While loop
+    While {
+        cond: Expr,           // condition
+        body: Box<Statement>, // body
+    },
+
+    /// Do loop, stmt is executed first
+    Do {
+        body: Box<Statement>, // body
+        cond: Expr,           // condition
+    },
+
+    /// Break loop
+    Break,
+
+    /// Continue loop
+    Continue,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Declaration {
+    /// Variable declaration with optional initial value.
+    Declare(String, Option<Expr>),
 }
 
 /// Item of a [`Statement::Compound`]
@@ -97,8 +137,7 @@ pub enum Statement {
 pub enum BlockItem {
     /// Arbitrary statement
     Stmt(Statement),
-    /// Variable declaration with optional initial value.
-    Decl(String, Option<Expr>),
+    Decl(Declaration),
 }
 
 #[derive(Debug, Clone, PartialEq)]

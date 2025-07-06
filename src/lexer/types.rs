@@ -3,7 +3,7 @@
 /// unless it's not; some unambiguous tokens are explained here anyway.
 ///
 /// [AST]: crate::ast::types
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Token {
     /// Literal "int"
     KeywordInt,
@@ -15,6 +15,16 @@ pub enum Token {
     KeywordIf,
     /// Literal "else"
     KeywordElse,
+    /// Literal "while"
+    KeywordWhile,
+    /// Literal "for"
+    KeywordFor,
+    /// Literal "do"
+    KeywordDo,
+    /// Literal "break"
+    KeywordBreak,
+    /// Literal "continue"
+    KeywordContinue,
 
     /// Identifier, such as "main"
     Identifier(String),
@@ -124,4 +134,55 @@ pub enum Token {
     QuestionMark,
     /// Literal ":" (part of the ternary expression)
     Colon,
+}
+
+impl TryFrom<&str> for Token {
+    type Error = ();
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        Ok(match s {
+            ">>=" => Token::ShiftRightEqual,
+            "<<=" => Token::ShiftLeftEqual,
+            "++" => Token::PlusPlus,
+            "--" => Token::MinusMinus,
+            "+=" => Token::PlusEqual,
+            "-=" => Token::MinusEqual,
+            "/=" => Token::SlashEqual,
+            "*=" => Token::AsteriskEqual,
+            "==" => Token::EqualEqual,
+            "!=" => Token::BangEqual,
+            ">=" => Token::GreaterEqual,
+            "<=" => Token::LessEqual,
+            "&&" => Token::AndAnd,
+            "||" => Token::OrOr,
+            "%=" => Token::ModuloEqual,
+            "&=" => Token::AndEqual,
+            "^=" => Token::XorEqual,
+            ">>" => Token::ShiftRight,
+            "<<" => Token::ShiftLeft,
+            "|=" => Token::OrEqual,
+            "+" => Token::Plus,
+            "-" => Token::Minus,
+            "*" => Token::Asterisk,
+            "/" => Token::Slash,
+            "=" => Token::Equal,
+            "!" => Token::Bang,
+            "~" => Token::Tilde,
+            ">" => Token::Greater,
+            "<" => Token::Less,
+            "," => Token::Comma,
+            ";" => Token::Semicolon,
+            "(" => Token::LParen,
+            ")" => Token::RParen,
+            "{" => Token::LBrace,
+            "}" => Token::RBrace,
+            "%" => Token::Modulo,
+            "&" => Token::And,
+            "|" => Token::Or,
+            "^" => Token::Xor,
+            "?" => Token::QuestionMark,
+            ":" => Token::Colon,
+            _ => return Err(()),
+        })
+    }
 }
