@@ -2,10 +2,12 @@ use crate::lexer::Token;
 use std::iter::Peekable;
 use std::str::Chars;
 
+/// Returns `true` for a valid identifier character (Unicode letter or digit, or `_`).
 fn is_identifier_char(c: char) -> bool {
     c.is_alphanumeric() || c == '_'
 }
 
+/// Consume characters from `chars` while `condition` is true and return them as a `String`.
 fn consume_until<F>(chars: &mut Peekable<Chars>, condition: F) -> String
 where
     F: Fn(char) -> bool,
@@ -23,6 +25,7 @@ where
     ident
 }
 
+/// Detect and skip either a `//` line-comment **or** a `/* ... */` block comment.
 fn skip_comment_if_present(chars: &mut Peekable<Chars>) -> Result<bool, String> {
     if chars.peek() != Some(&'/') {
         return Ok(false);
@@ -69,22 +72,24 @@ fn skip_comment_if_present(chars: &mut Peekable<Chars>) -> Result<bool, String> 
     Ok(false)
 }
 
-fn match_operator(chars: &mut Peekable<Chars>, matches: &[(&str, Token)]) -> Option<Token> {
-    for (symbol, token) in matches {
-        let mut lookahead = chars.clone();
+/// Longest-match operator scanner.
+/// Returns `Some(Token)` if an operator starts at the cursor, otherwise `None`.
+fn match_operator(chars: &mut Peekable<Chars>) -> Option<Token> {
+    const MAX_OP_LEN: usize = 3;
 
-        let matched = symbol
-            .chars()
-            .all(|expected| lookahead.next().is_some_and(|actual| expected == actual));
-
-        if matched {
-            for _ in 0..symbol.len() {
-                chars.next(); // consume the matched characters
+    // try the longest slice first, then shorter ones
+    for len in (1..=MAX_OP_LEN).rev() {
+        let candidate: String = chars.clone().take(len).collect();
+        if candidate.len() == len {
+            if let Ok(tok) = Token::try_from(candidate.as_str()) {
+                // consume the matched chars from the real iterator
+                for _ in 0..len {
+                    chars.next();
+                }
+                return Some(tok);
             }
-            return Some(token.clone());
         }
     }
-
     None
 }
 
@@ -127,57 +132,8 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
             continue;
         }
 
-        if let Some(token) = match_operator(
-            &mut chars,
-            &[
-                (">>=", Token::ShiftRightEqual),
-                ("<<=", Token::ShiftLeftEqual),
-                ("++", Token::PlusPlus),
-                ("--", Token::MinusMinus),
-                ("+=", Token::PlusEqual),
-                ("-=", Token::MinusEqual),
-                ("/=", Token::SlashEqual),
-                ("*=", Token::AsteriskEqual),
-                ("==", Token::EqualEqual),
-                ("!=", Token::BangEqual),
-                (">=", Token::GreaterEqual),
-                ("<=", Token::LessEqual),
-                ("&&", Token::AndAnd),
-                ("||", Token::OrOr),
-                ("%=", Token::ModuloEqual),
-                ("&=", Token::AndEqual),
-                ("^=", Token::XorEqual),
-                (">>", Token::ShiftRight),
-                ("<<", Token::ShiftLeft),
-                ("|=", Token::OrEqual),
-                ("%", Token::Modulo),
-                ("&", Token::And),
-                ("|", Token::Or),
-                ("^", Token::Xor),
-                ("+", Token::Plus),
-                ("-", Token::Minus),
-                ("*", Token::Asterisk),
-                ("/", Token::Slash),
-                ("=", Token::Equal),
-                ("!", Token::Bang),
-                ("~", Token::Tilde),
-                (">", Token::Greater),
-                ("<", Token::Less),
-                (",", Token::Comma),
-                (";", Token::Semicolon),
-                ("(", Token::LParen),
-                (")", Token::RParen),
-                ("{", Token::LBrace),
-                ("}", Token::RBrace),
-                ("%", Token::Modulo),
-                ("&", Token::And),
-                ("|", Token::Or),
-                ("^", Token::Or),
-                ("?", Token::QuestionMark),
-                (":", Token::Colon),
-            ],
-        ) {
-            tokens.push(token);
+        if let Some(tok) = match_operator(&mut chars) {
+            tokens.push(tok);
         } else {
             return Err(format!("Unrecognized character '{}'", ch));
         }
