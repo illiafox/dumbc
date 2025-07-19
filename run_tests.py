@@ -5,7 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-STAGES = [1, 2, 3, 4, 5, 6, 7, 8]
+STAGES = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 TARGET_ARCHS = ["aarch64"]
 BASE = Path("testsuite")
 
@@ -109,6 +109,10 @@ def compare_c_and_s_outputs(c_file: Path, s_file: Path, arch: str = "arm64") -> 
         return True
 
     print(f"{RED}MISMATCH DETECTED{RESET}")
+    print("--- C code ---")
+    print(c_file.read_text())
+    print("--- Compiler generated asm ---")
+    print(s_file.read_text())
     if not match_code:
         print(f"Return codes differ: C={code_c}, ASM={code_s}")
     if not match_output:
