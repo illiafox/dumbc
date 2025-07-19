@@ -1,8 +1,8 @@
 use crate::ast::BlockItem::{Decl, Stmt};
 use crate::ast::Declaration::Declare;
-use crate::ast::Expr::{Assign, BinOp, Conditional};
+use crate::ast::Expr::{Assign, BinOp, Conditional, FunCall};
 use crate::ast::Statement::Continue;
-use crate::ast::{BinaryOp, BlockItem, Declaration, Expr, Program, Statement, UnaryOp};
+use crate::ast::{BinaryOp, BlockItem, Declaration, Expr, Function, Program, Statement, UnaryOp};
 use crate::generator::allocator::{Allocator, Variable};
 use crate::generator::bingus::is_bingus_used;
 use crate::generator::label::LabelGenerator;
@@ -42,6 +42,8 @@ struct Generator<'a> {
     allocator: Allocator,
     epilogue: String,
     debug_enabled: bool,
+
+    platform: String,
 }
 
 impl Generator<'_> {
@@ -75,21 +77,133 @@ impl StackTracker {
     }
 }
 
+/// Returns the symbol prefix (e.g. "_" on macOS) used when generating labels for functions.
+fn function_label_prefix(platform: &str) -> Result<&str, Box<dyn Error>> {
+    match platform {
+        "macos" => Ok("_"),
+        "linux" => Ok(""),
+        _ => Err(format!("Unsupported platform {}", platform).into()),
+    }
+}
+
 struct Context {
     break_label: Option<String>,
     continue_label: Option<String>,
 }
 
+/// Emit *one* arithmetic / logical binary operator.
+/// Assumes:
+///   • right  operand is already in **w0**
+///   • left   operand is already in **w11**
+/// Leaves the result in **w0**.
+fn emit_binop(g: &mut Generator, op: BinaryOp) -> fmt::Result {
+    use BinaryOp::*;
+    match op {
+        Add => writeln!(g.output, "add\tw0, w11, w0"),
+        Sub => writeln!(g.output, "sub\tw0, w11, w0"),
+        Multiply => writeln!(g.output, "mul\tw0, w11, w0"),
+        Divide => writeln!(g.output, "sdiv\tw0, w11, w0"),
+        And => writeln!(g.output, "and\tw0, w11, w0"),
+        Or => writeln!(g.output, "orr\tw0, w11, w0"),
+        Xor => writeln!(g.output, "eor\tw0, w11, w0"),
+        ShiftLeft => writeln!(g.output, "lsl\tw0, w11, w0"),
+        ShiftRight => writeln!(g.output, "lsr\tw0, w11, w0"),
+
+        Modulo => {
+            writeln!(g.output, "udiv\tw12, w11, w0")?;
+            writeln!(g.output, "msub\tw0, w12, w0, w11")
+        }
+
+        Equal => {
+            writeln!(g.output, "cmp\tw11, w0")?;
+            writeln!(g.output, "cset\tw0, eq")
+        }
+        NotEqual => {
+            writeln!(g.output, "cmp\tw11, w0")?;
+            writeln!(g.output, "cset\tw0, ne")
+        }
+        Less => {
+            writeln!(g.output, "cmp\tw11, w0")?;
+            writeln!(g.output, "cset\tw0, lt")
+        }
+        LessEqual => {
+            writeln!(g.output, "cmp\tw11, w0")?;
+            writeln!(g.output, "cset\tw0, le")
+        }
+        Greater => {
+            writeln!(g.output, "cmp\tw11, w0")?;
+            writeln!(g.output, "cset\tw0, gt")
+        }
+        GreaterEqual => {
+            writeln!(g.output, "cmp\tw11, w0")?;
+            writeln!(g.output, "cset\tw0, ge")
+        }
+
+        // logical‑and / or are handled earlier in generate_expr
+        LogicalAnd | LogicalOr => unreachable!("short‑circuited ops never reach emit_binop"),
+    }
+}
+
+/// Emit a *complete* function call, including alignment padding,
+/// argument evaluation, the `bl`, and stack clean‑up.
+///
+///  • `args` are evaluated **left‑to‑right** exactly once each.
+///  • The first 8 results go to  w0…w7, the rest are pushed (right‑to‑left).
+fn emit_fun_call(g: &mut Generator, name: &str, args: &[Expr]) -> Result<(), Box<dyn Error>> {
+    // On OS X, the stack needs to be 16-byte aligned when the call instruction is issued
+
+    // align stack before pushing args
+    // push args (right-to-left)
+    // emit bl _func
+    // cleanup stack (args + padding)
+
+    let n = args.len();
+    // # stack args = anything beyond the first 8
+    let num_stack_args = n.saturating_sub(8);
+    let arg_stack_size = 16 * num_stack_args;
+
+    writeln!(g.output, "mov\tx9, sp")?; // x9 will track the future sp
+    writeln!(g.output, "sub\tx9, x9, #{arg_stack_size}")?; // simulate: sp - (args + padding marker)
+    writeln!(g.output, "and\tx10, x9, #15")?; // x10 = misalignment = (sp - size) % 16
+    writeln!(g.output, "sub\tsp, sp, x10")?; // subtract misalignment to align
+    writeln!(g.output, "str\tx10, [sp, #-16]!")?; // save the padding value (push it)
+
+    for (rev_i, param) in args.iter().rev().enumerate() {
+        generate_expr(g, param)?; // result in w0
+
+        // real register index for this argument
+        let reg = n - 1 - rev_i; // 0 = first param, 1 = second, …
+
+        if reg < 8 {
+            writeln!(g.output, "mov\tw{}, w0", reg)?; // copy into its ABI register
+        } else {
+            // 9‑th and later: go on the stack, highest‑index first
+            writeln!(g.output, "str\tw0, [sp, #-16]!")?;
+        }
+    }
+
+    let prefix = function_label_prefix(&g.platform)?;
+
+    writeln!(g.output, "bl\t{prefix}{name}")?;
+
+    writeln!(g.output, "add\tsp, sp, #{arg_stack_size}")?; // remove args
+
+    writeln!(g.output, "ldr\tx9, [sp], #16")?; // pop off the padding
+    writeln!(g.output, "add\tsp, sp, x9")?; // apply padding
+
+    Ok(())
+}
+
 fn generate_expr(g: &mut Generator, expr: &Expr) -> Result<(), Box<dyn Error>> {
     match expr {
         Expr::Const(n) => {
-            writeln!(g.output, "mov\tw0, #{}", n)?;
+            writeln!(g.output, "mov\tw0, #{n}")?;
         }
         Expr::Var(name) => {
             let var = g
                 .allocator
                 .get(name)
-                .ok_or_else(|| format!("variable {} not found", name))?;
+                .ok_or_else(|| format!("variable {name} not found"))?;
             var.emit_store_in_w0(g.output)?
         }
         Expr::UnOp(op, inner) => {
@@ -115,16 +229,16 @@ fn generate_expr(g: &mut Generator, expr: &Expr) -> Result<(), Box<dyn Error>> {
             generate_expr(g, lhs)?; // result in w0
 
             writeln!(g.output, "cmp\tw0, #0")?; // check if lhs is true (non-zero)
-            writeln!(g.output, "b.ne\t{}", true_clause)?; // if lhs != 0, short-circuit: result is true
+            writeln!(g.output, "b.ne\t{true_clause}",)?; // if lhs != 0, short-circuit: result is true
 
             generate_expr(g, rhs)?; // result in w0
             writeln!(g.output, "cmp\tw0, #0")?; // check if rhs is true (non-zero)
             writeln!(g.output, "cset\tw0, ne")?; // w0 = 1 if rhs != 0, else 0
-            writeln!(g.output, "b\t{}", end_clause)?;
+            writeln!(g.output, "b\t{end_clause}",)?;
 
-            writeln!(g.output, "{}:", true_clause)?;
+            writeln!(g.output, "{true_clause}:",)?;
             writeln!(g.output, "mov\tw0, #1")?; // result is 1
-            writeln!(g.output, "{}:", end_clause)?;
+            writeln!(g.output, "{end_clause}:",)?;
         }
         BinOp(BinaryOp::LogicalAnd, lhs, rhs) => {
             let false_clause = g.labels.next("and_false");
@@ -133,71 +247,32 @@ fn generate_expr(g: &mut Generator, expr: &Expr) -> Result<(), Box<dyn Error>> {
             generate_expr(g, lhs)?; // result in w0
 
             writeln!(g.output, "cmp\tw0, #0")?; // check if lhs is false (zero)
-            writeln!(g.output, "b.eq\t{}", false_clause)?; // if lhs == 0, short-circuit: result is false
+            writeln!(g.output, "b.eq\t{false_clause}",)?; // if lhs == 0, short-circuit: result is false
 
             generate_expr(g, rhs)?; // result in w0
             writeln!(g.output, "cmp\tw0, #0")?; // check if rhs is true (non-zero)
             writeln!(g.output, "cset\tw0, ne")?; // w0 = 1 if rhs != 0, else 0
-            writeln!(g.output, "b\t{}", end_clause)?;
+            writeln!(g.output, "b\t{end_clause}",)?;
 
-            writeln!(g.output, "{}:", false_clause)?;
+            writeln!(g.output, "{false_clause}:",)?;
             writeln!(g.output, "mov\tw0, #0")?; // result is 0
-            writeln!(g.output, "{}:", end_clause)?;
+            writeln!(g.output, "{end_clause}:",)?;
         }
         BinOp(op, lhs, rhs) => {
+            // because registers w0–w7 are reserved for the argument list,
+            // we must not use any of them as temporaries
+            // use w11
+
             generate_expr(g, lhs)?;
             writeln!(g.output, "str\tw0, [sp, #-16]!")?; // push lhs (keep 16-byte align)
 
             generate_expr(g, rhs)?;
-            writeln!(g.output, "ldr\tw1, [sp], #16")?; /* lhs → w1 */
+            writeln!(g.output, "ldr\tw11, [sp], #16")?; /* lhs → w1 */
 
             // w0 - result of evaluating rhs
-            // w1 - result of evaluating lhs
+            // w11 - result of evaluating lhs
 
-            match op {
-                BinaryOp::Add => writeln!(g.output, "add\tw0, w1, w0")?,
-                BinaryOp::Sub => writeln!(g.output, "sub\tw0, w1, w0")?,
-                BinaryOp::Multiply => writeln!(g.output, "mul\tw0, w1, w0")?,
-                BinaryOp::Divide => writeln!(g.output, "sdiv\tw0, w1, w0")?,
-                BinaryOp::And => writeln!(g.output, "and\tw0, w1, w0")?,
-                BinaryOp::Or => writeln!(g.output, "orr\tw0, w1, w0")?,
-                BinaryOp::Xor => writeln!(g.output, "eor\tw0, w1, w0")?,
-                BinaryOp::ShiftLeft => writeln!(g.output, "lsl\tw0, w1, w0")?,
-                BinaryOp::ShiftRight => writeln!(g.output, "lsr\tw0, w1, w0")?,
-
-                BinaryOp::Modulo => {
-                    // USES w2 register
-                    writeln!(g.output, "udiv\tw2, w1, w0")?; // w2 = lhs / rhs
-                    writeln!(g.output, "msub\tw0, w2, w0, w1")?; // w0 = lhs - w2 * rhs
-                }
-
-                BinaryOp::Equal => {
-                    writeln!(g.output, "cmp\tw1, w0")?;
-                    writeln!(g.output, "cset\tw0, eq")?;
-                }
-                BinaryOp::NotEqual => {
-                    writeln!(g.output, "cmp\tw1, w0")?;
-                    writeln!(g.output, "cset\tw0, ne")?;
-                }
-                BinaryOp::Less => {
-                    writeln!(g.output, "cmp\tw1, w0")?;
-                    writeln!(g.output, "cset\tw0, lt")?;
-                }
-                BinaryOp::LessEqual => {
-                    writeln!(g.output, "cmp\tw1, w0")?;
-                    writeln!(g.output, "cset\tw0, le")?;
-                }
-                BinaryOp::Greater => {
-                    writeln!(g.output, "cmp\tw1, w0")?;
-                    writeln!(g.output, "cset\tw0, gt")?;
-                }
-                BinaryOp::GreaterEqual => {
-                    writeln!(g.output, "cmp\tw1, w0")?;
-                    writeln!(g.output, "cset\tw0, ge")?;
-                }
-
-                op => panic!("op {op} is not supported"),
-            }
+            emit_binop(g, *op)?;
         }
         Assign(name, expr) => {
             let var = {
@@ -216,16 +291,18 @@ fn generate_expr(g: &mut Generator, expr: &Expr) -> Result<(), Box<dyn Error>> {
 
             generate_expr(g, cond)?; // evaluate cond (e1)
             writeln!(g.output, "cmp\tw0, #0")?; // compare e1 cond zero
-            writeln!(g.output, "beq\t{}", else_label)?; // if e1 == 0 (false), jump to else (e3)
+            writeln!(g.output, "beq\t{else_label}")?; // if e1 == 0 (false), jump to else (e3)
 
             generate_expr(g, then)?; // evaluate e2
-            writeln!(g.output, "b\t{}", post_conditional)?; // skip e3
+            writeln!(g.output, "b\t{post_conditional}")?; // skip e3
 
-            writeln!(g.output, "{}:", else_label)?;
+            writeln!(g.output, "{else_label}:")?;
             generate_expr(g, els)?; // evaluate else (e3)
 
-            writeln!(g.output, "{}:", post_conditional)?;
+            writeln!(g.output, "{post_conditional}:")?;
         }
+
+        FunCall { name, parameters } => emit_fun_call(g, name, parameters)?,
     }
 
     Ok(())
@@ -270,7 +347,7 @@ fn generate_stmt(
             writeln!(g.output, "{}:", post_conditional)?;
             Ok(())
         }
-        Statement::Compound(block_items) => generate_block(ctx, g, block_items),
+        Statement::Compound(block_items) => generate_block(ctx, g, block_items, None),
 
         Statement::While { cond, body } => {
             let start = g.labels.next("_while");
@@ -452,9 +529,14 @@ fn generate_block(
     ctx: &mut Context,
     g: &mut Generator,
     items: &[BlockItem],
+    outer_scope: Option<&HashSet<String>>,
 ) -> Result<(), Box<dyn Error>> {
     let old_allocator = g.allocator.clone();
+
     let mut current_scope = HashSet::new();
+    if let Some(outer) = outer_scope {
+        current_scope.extend(outer.clone());
+    }
 
     let tracker = StackTracker::begin(g);
 
@@ -502,15 +584,20 @@ fn stmt_ends_with_return(stmt: &Statement) -> bool {
     }
 }
 
-pub fn generate(program: &Program, platform: &str, debug: bool) -> Result<String, Box<dyn Error>> {
-    let function = &program.function;
+/// Generates
+pub fn generate_function(
+    function: &Function,
+    labels: &mut LabelGenerator,
+    platform: &str,
+    debug: bool,
+) -> Result<String, Box<dyn Error>> {
+    if function.block_items.is_none() {
+        return Err("cannot generate function declaration".into());
+    }
+
     let mut output = String::new();
 
-    let prefix = match platform {
-        "macos" => "_",
-        "linux" => "",
-        _ => return Err(format!("Unsupported platform {platform}").into()),
-    };
+    let prefix = function_label_prefix(platform)?;
 
     let free_use_registers = &[
         "w19", "w20", "w21", "w22", "w23", "w24", "w25", "w26", "w27", "w28",
@@ -518,7 +605,9 @@ pub fn generate(program: &Program, platform: &str, debug: bool) -> Result<String
 
     let mut dry_allocator = Allocator::new(free_use_registers);
     let mut max_stack = 0;
-    simulate_stack_usage(&function.block_items, &mut dry_allocator, &mut max_stack);
+
+    let block_items = function.block_items.as_ref().unwrap();
+    simulate_stack_usage(block_items, &mut dry_allocator, &mut max_stack);
 
     let stack_size = ((max_stack + 15) / 16) * 16; // alignment
 
@@ -526,20 +615,8 @@ pub fn generate(program: &Program, platform: &str, debug: bool) -> Result<String
         println!("stack size: {stack_size}");
     }
 
-    let bingus_used = program.function.block_items.iter().any(is_bingus_used);
-    if bingus_used {
-        match platform {
-            "macos" => {
-                let bingus = include_bytes!("bingus_arm64_macos.s");
-                let bingus_s = std::str::from_utf8(bingus).expect("bingus.s not UTF-8");
-                output.write_str(bingus_s)?;
-            }
-            _ => return Err(format!("bingus is not supported on platform {platform}").into()),
-        }
-    }
-
-    writeln!(output, ".global {}main", prefix)?;
-    writeln!(output, "{}main:", prefix)?;
+    writeln!(output, ".global {}{}", prefix, function.name)?;
+    writeln!(output, "{}{}:", prefix, function.name)?;
 
     // ---------- function prologue ----------
     writeln!(output, "stp\tx29, x30, [sp, #-16]!")?; // save frame-pointer (x29) and link-register (x30).
@@ -566,20 +643,19 @@ pub fn generate(program: &Program, platform: &str, debug: bool) -> Result<String
         writeln!(output, "sub\tsp, sp, #{}", stack_size)?;
     }
 
-    let mut labels = LabelGenerator::new();
     let epilogue = labels.next("func_epilogue");
 
     // codegen pass
     let mut generator = Generator {
         output: &mut output,
-        labels: &mut labels,
+        labels,
         allocator: Allocator::new(free_use_registers.as_slice()),
         epilogue: epilogue.clone(),
         debug_enabled: debug,
+        platform: platform.to_string(),
     };
 
-    let saw_return = function
-        .block_items
+    let saw_return = block_items
         .iter()
         .rev()
         .find(|item| matches!(item, Stmt(_)))
@@ -590,7 +666,38 @@ pub fn generate(program: &Program, platform: &str, debug: bool) -> Result<String
         continue_label: None,
     };
 
-    generate_block(&mut ctx, &mut generator, &function.block_items)?;
+    // assign incoming parameters to allocator and move them from w0–w7 into locals
+    for (i, param) in function.params.iter().enumerate() {
+        if i >= 8 {
+            return Err("more than 8 parameters not supported".into());
+        }
+
+        let var = generator.allocator.allocate(param.clone(), 4);
+        generator.debug(format!("param {param} -> {var:?}"));
+
+        match var {
+            Variable::Register(reg) => {
+                writeln!(generator.output, "mov\t{}, w{}", reg, i)?;
+            }
+            Variable::Stack(offset) => {
+                writeln!(generator.output, "str\tw{}, [x29, #{:+}]", i, offset)?;
+            }
+        }
+    }
+
+    let mut top_scope_names = HashSet::new();
+    for param in &function.params {
+        if !top_scope_names.insert(param.clone()) {
+            return Err(format!("duplicate parameter '{}'", param).into());
+        }
+    }
+
+    generate_block(
+        &mut ctx,
+        &mut generator,
+        block_items,
+        Some(&top_scope_names),
+    )?;
 
     // emit default return if none provided
     if !saw_return {
@@ -611,6 +718,39 @@ pub fn generate(program: &Program, platform: &str, debug: bool) -> Result<String
 
     writeln!(output, "ldp\tx29, x30, [sp], #16")?;
     writeln!(output, "ret")?;
+
+    Ok(output)
+}
+
+pub fn generate(program: &Program, platform: &str, debug: bool) -> Result<String, Box<dyn Error>> {
+    let mut output = String::new();
+
+    let bingus_used = program
+        .functions
+        .iter()
+        .filter_map(|f| f.block_items.as_ref())
+        .flatten()
+        .any(is_bingus_used);
+    if bingus_used {
+        match platform {
+            "macos" => {
+                let bingus = include_bytes!("bingus_arm64_macos.s");
+                let bingus_s = std::str::from_utf8(bingus).expect("bingus.s not UTF-8");
+                output.write_str(bingus_s)?;
+            }
+            _ => return Err(format!("bingus is not supported on platform {platform}").into()),
+        }
+    }
+
+    let mut labels = LabelGenerator::new();
+
+    for function in &program.functions {
+        if function.block_items.is_none() {
+            continue;
+        }
+        output += &generate_function(function, &mut labels, platform, debug)?;
+        output.write_str("\n")?;
+    }
 
     Ok(output)
 }

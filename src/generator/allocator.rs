@@ -10,7 +10,7 @@ pub enum Variable {
 pub struct Allocator {
     next_stack_offset: i32,
     used_registers: Vec<String>,
-    vars: HashMap<String, Variable>,
+    pub vars: HashMap<String, Variable>,
 }
 
 impl Allocator {

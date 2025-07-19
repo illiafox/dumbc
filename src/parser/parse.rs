@@ -29,32 +29,56 @@ pub fn expect_ident(tokens: &[Token], pos: &mut usize) -> Result<String, String>
 
 pub fn parse(tokens: &[Token]) -> Result<Program, String> {
     let mut pos = 0;
+    let mut functions = Vec::new();
 
-    // match: int main ( ) { return 42 ; }
-    expect(tokens, &mut pos, &Token::KeywordInt)?;
-    let name = expect_ident(tokens, &mut pos)?;
-    expect(tokens, &mut pos, &Token::LParen)?;
-    expect(tokens, &mut pos, &Token::RParen)?;
+    while pos < tokens.len() {
+        expect(tokens, &mut pos, &Token::KeywordInt)?;
+        let name = expect_ident(tokens, &mut pos)?;
 
-    expect(tokens, &mut pos, &Token::LBrace)?;
+        expect(tokens, &mut pos, &Token::LParen)?;
 
-    let mut body = Vec::new();
+        // parse parameter list: [ "int" <id> { "," "int" <id> } ]
+        let mut params = Vec::new();
+        if tokens.get(pos) != Some(&Token::RParen) {
+            loop {
+                expect(tokens, &mut pos, &Token::KeywordInt)?;
+                let param = expect_ident(tokens, &mut pos)?;
+                params.push(param);
 
-    while tokens.get(pos) != Some(&Token::RBrace) {
-        let statements = parse_block_items(tokens, &mut pos)?;
-        body.extend(statements);
-    }
+                if tokens.get(pos) == Some(&Token::Comma) {
+                    pos += 1;
+                } else {
+                    break;
+                }
+            }
+        }
+        expect(tokens, &mut pos, &Token::RParen)?;
 
-    expect(tokens, &mut pos, &Token::RBrace)?;
+        // expect either `{` (definition) or `;` (declaration)
+        let body = match tokens.get(pos) {
+            Some(Token::LBrace) => {
+                pos += 1;
+                let mut block_items = Vec::new();
+                while tokens.get(pos) != Some(&Token::RBrace) {
+                    let stmts = parse_block_items(tokens, &mut pos)?;
+                    block_items.extend(stmts);
+                }
+                expect(tokens, &mut pos, &Token::RBrace)?;
+                Some(block_items)
+            }
+            Some(Token::Semicolon) => {
+                pos += 1;
+                None
+            }
+            other => return Err(format!("Expected '{{' or ';', found {:?}", other)),
+        };
 
-    if pos < tokens.len() {
-        return Err(format!("Unexpected token: {:?}", tokens[pos]));
-    }
-
-    Ok(Program {
-        function: Function {
+        functions.push(Function {
             name,
+            params,
             block_items: body,
-        },
-    })
+        });
+    }
+
+    Ok(Program { functions })
 }

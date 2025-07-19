@@ -13,6 +13,11 @@ impl fmt::Display for Expr {
             Expr::Conditional { cond, then, els } => {
                 write!(f, "({} ? {} : {})", cond, then, els)
             }
+
+            Expr::FunCall { name, parameters } => {
+                let param_strs: Vec<String> = parameters.iter().map(|p| format!("{}", p)).collect();
+                write!(f, "{}({})", name, param_strs.join(", "))
+            }
         }
     }
 }
@@ -172,6 +177,6 @@ impl fmt::Display for Function {
 
 impl fmt::Display for Program {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.function)
+        write!(f, "{:?}", self.functions)
     }
 }

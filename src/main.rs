@@ -1,3 +1,4 @@
+use crate::generator::function_validation::validate_functions_declarations;
 use crate::lexer::lex;
 use crate::parser::parse;
 use clap::Parser;
@@ -53,6 +54,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if args.debug {
         println!("program: {}", program);
     }
+
+    validate_functions_declarations(&program)?;
 
     let asm = generate(&program, &args.platform, args.debug)?;
 
