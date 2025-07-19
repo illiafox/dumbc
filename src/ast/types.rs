@@ -71,6 +71,8 @@ pub enum Expr {
         then: Box<Expr>,
         els: Box<Expr>,
     },
+    /// Function call
+    FunCall { name: String, parameters: Vec<Expr> },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -143,10 +145,11 @@ pub enum BlockItem {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Function {
     pub name: String,
-    pub block_items: Vec<BlockItem>,
+    pub params: Vec<String>,
+    pub block_items: Option<Vec<BlockItem>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program {
-    pub function: Function,
+    pub functions: Vec<Function>,
 }

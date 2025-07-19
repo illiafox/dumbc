@@ -75,6 +75,33 @@ fn parse_factor(tokens: &[Token], pos: &mut usize) -> Result<Expr, String> {
 
         Some(Token::Identifier(name)) => {
             *pos += 1;
+
+            if tokens.get(*pos) == Some(&Token::LParen) {
+                // function
+                *pos += 1; // consume '('
+
+                let mut args = Vec::new();
+
+                if tokens.get(*pos) != Some(&Token::RParen) {
+                    loop {
+                        let arg = parse_expr(tokens, pos)?;
+                        args.push(arg);
+
+                        if tokens.get(*pos) == Some(&Token::Comma) {
+                            *pos += 1;
+                        } else {
+                            break;
+                        }
+                    }
+                }
+
+                expect(tokens, pos, &Token::RParen)?;
+                return Ok(Expr::FunCall {
+                    name: name.clone(),
+                    parameters: args,
+                });
+            }
+
             Ok(Var(name.clone()))
         }
 
