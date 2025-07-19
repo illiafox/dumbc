@@ -29,7 +29,7 @@ Built by following [Nora Sandler’s "Write a Compiler"](https://norasandler.com
 - [x] Part 6: Conditionals
 - [x] Part 7: Compound Statements
 - [x] Part 8: Loops
-- [ ] Part 9: Functions
+- [x] Part 9: Functions (with calls to the C standard library!)
 - [ ] Part 10: Global Variables
 
 ---
@@ -67,7 +67,7 @@ echo $?  # prints: 42
 ### `bingus` keyword
 `bingus(arg)` is a built-in pseudo-function, which evaluates expression and prints it into stdout. Available on macOS platform
 
-Until functions are supported, it is the only way to print something (e.g. for debug purposes)
+**DEPRECATED**: calls to the standard library functions are supported
 
 Example:
 ```c
