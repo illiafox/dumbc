@@ -3,6 +3,7 @@ import difflib
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 STAGES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
@@ -128,11 +129,16 @@ def compare_c_and_s_outputs(c_file: Path, s_file: Path, arch: str = "arm64") -> 
 
 def run_test(c_file: Path, expect_success: bool, arch: str) -> bool:
     print(f"Testing {c_file}...", end=" ")
+
+    start = time.time()
     result = subprocess.run(
         ["cargo", "run", "--quiet", "--", str(c_file), "--arch", arch],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
+    end = time.time()
+    print(f"compiled in {(end - start):.2f}s")
+
     success = result.returncode == 0
     if expect_success and not success:
         if c_file.name.startswith("skip_on_failure"):
