@@ -2,18 +2,51 @@ use crate::ast::BlockItem::{Decl, Stmt};
 use crate::ast::Declaration::Declare;
 use crate::ast::Expr::{Assign, BinOp, Conditional, FunCall};
 use crate::ast::Statement::Continue;
-use crate::ast::{BinaryOp, BlockItem, Declaration, Expr, Function, Program, Statement, UnaryOp};
+use crate::ast::{
+    BinaryOp, BlockItem, Declaration, Expr, Function, Program, Statement, TopLevel, UnaryOp,
+};
 use crate::generator::allocator::{Allocator, Variable};
 use crate::generator::bingus::is_bingus_used;
+use crate::generator::evaluate_expr_compile_time::evaluate_compile_time_expr;
+use crate::generator::function_validation::{
+    check_global_name_conflicts, validate_functions_declarations,
+};
 use crate::generator::label::LabelGenerator;
 use crate::generator::stack::simulate_stack_usage;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fmt;
 use std::fmt::Write;
 
 impl Variable {
-    pub fn emit_store_in_w0(&self, output: &mut dyn Write) -> fmt::Result {
+    pub fn emit_global_variable_address_load_x1(
+        label: &str,
+        output: &mut dyn Write,
+        platform: &str,
+    ) -> fmt::Result {
+        // ARM64 does not have a single instruction that loads a full 64-bit address directly. Instead, it breaks it into two parts:
+        //
+        // adrp x0, _my_var
+        // Loads the page-aligned base address (top 52 bits of the address with bottom 12 zeroed) into x0.
+        //
+        // add x0, x0, :lo12:_my_var
+        // Adds the offset within the page (lowest 12 bits of the address) to x0 to compute the full address.
+
+        match platform {
+            // macOS with Clang enforces a stricter position-independent code model
+            // global variables must be accessed through the Global Offset Table (GOT)
+            "macos" => {
+                writeln!(output, "adrp\tx1, {label}@GOTPAGE")?;
+                writeln!(output, "ldr\tx1, [x1, {label}@GOTPAGEOFF]")
+            }
+            _ => {
+                writeln!(output, "adrp\tx1, {label}")?;
+                writeln!(output, "add\tx1, x1, :lo12:{label}")
+            }
+        }
+    }
+
+    pub fn emit_store_in_w0(&self, output: &mut dyn Write, platform: &str) -> fmt::Result {
         match self {
             Variable::Register(reg) => {
                 writeln!(output, "mov\tw0, {}", reg)
@@ -21,16 +54,24 @@ impl Variable {
             Variable::Stack(offset) => {
                 writeln!(output, "ldr\tw0, [x29, #{:+}]", offset)
             }
+            Variable::Global(label) => {
+                Variable::emit_global_variable_address_load_x1(label, output, platform)?;
+                writeln!(output, "ldr\tw0, [x1]") // load 32-bit value from label into w0
+            }
         }
     }
 
-    pub fn emit_store_from_w0(&self, output: &mut dyn Write) -> fmt::Result {
+    pub fn emit_store_from_w0(&self, output: &mut dyn Write, platform: &str) -> fmt::Result {
         match self {
             Variable::Register(reg) => {
                 writeln!(output, "mov\t{}, w0", reg)
             }
             Variable::Stack(offset) => {
                 writeln!(output, "str\tw0, [x29, #{:+}]", offset)
+            }
+            Variable::Global(label) => {
+                Variable::emit_global_variable_address_load_x1(label, output, platform)?;
+                writeln!(output, "str\tw0, [x1]") // load page address of label into x1
             }
         }
     }
@@ -51,29 +92,6 @@ impl Generator<'_> {
         if self.debug_enabled {
             println!("{msg}");
         }
-    }
-}
-
-struct StackTracker {
-    // start_offset: i32,
-}
-
-impl StackTracker {
-    fn begin(_g: &Generator) -> Self {
-        Self {
-            // start_offset: g.allocator.total_stack_size(),
-        }
-    }
-
-    fn end_scope(self, _g: &mut Generator) -> Result<(), std::fmt::Error> {
-        // let end_offset = g.allocator.total_stack_size();
-        // let diff = end_offset - self.start_offset;
-        // println!("diff: {}", diff);
-        // if diff > 0 {
-        //     writeln!(g.output, "add\tsp, sp, #{}", diff)?;
-        // }
-        // TODO: add dynamic scope
-        Ok(())
     }
 }
 
@@ -204,7 +222,7 @@ fn generate_expr(g: &mut Generator, expr: &Expr) -> Result<(), Box<dyn Error>> {
                 .allocator
                 .get(name)
                 .ok_or_else(|| format!("variable {name} not found"))?;
-            var.emit_store_in_w0(g.output)?
+            var.emit_store_in_w0(g.output, &g.platform)?;
         }
         Expr::UnOp(op, inner) => {
             generate_expr(g, inner)?; // recursively evaluate into w0
@@ -282,7 +300,7 @@ fn generate_expr(g: &mut Generator, expr: &Expr) -> Result<(), Box<dyn Error>> {
                     .ok_or_else(|| format!("assignment to undeclared variable '{}'", name))?
             };
             generate_expr(g, expr)?;
-            var.emit_store_from_w0(g.output)?
+            var.emit_store_from_w0(g.output, &g.platform)?
         } // op => panic!("op {op} is not supported"),
 
         Conditional { cond, then, els } => {
@@ -433,9 +451,7 @@ fn generate_stmt(
             post,
             body,
         } => {
-            let old_allocator = g.allocator.clone();
-            let tracker = StackTracker::begin(g); // keep stack accounting
-
+            g.allocator.enter_scope();
             generate_declaration(g, decl)?; // alloc ‘i’ inside *this* scope
 
             let start = g.labels.next("_for_decl");
@@ -458,8 +474,7 @@ fn generate_stmt(
             writeln!(g.output, "b\t{}", start)?;
             writeln!(g.output, "{}:", finish)?;
 
-            tracker.end_scope(g)?;
-            g.allocator = old_allocator;
+            g.allocator.exit_scope();
             Ok(())
         }
 
@@ -490,7 +505,7 @@ fn generate_declaration(g: &mut Generator, decl: &Declaration) -> Result<(), Box
             g.debug(format!("var {var:?} allocated"));
             if let Some(expr) = expr {
                 generate_expr(g, expr)?;
-                var.emit_store_from_w0(g.output)?;
+                var.emit_store_from_w0(g.output, &g.platform)?;
             }
             Ok(())
         }
@@ -513,14 +528,11 @@ fn generate_statement_in_new_scope(
     g: &mut Generator,
     stmt: &Statement,
 ) -> Result<(), Box<dyn Error>> {
-    let old_allocator = g.allocator.clone();
-
-    let tracker = StackTracker::begin(g);
+    g.allocator.enter_scope();
 
     generate_stmt(ctx, g, stmt)?;
 
-    tracker.end_scope(g)?;
-    g.allocator = old_allocator;
+    g.allocator.exit_scope();
 
     Ok(())
 }
@@ -531,14 +543,12 @@ fn generate_block(
     items: &[BlockItem],
     outer_scope: Option<&HashSet<String>>,
 ) -> Result<(), Box<dyn Error>> {
-    let old_allocator = g.allocator.clone();
+    g.allocator.enter_scope();
 
     let mut current_scope = HashSet::new();
     if let Some(outer) = outer_scope {
         current_scope.extend(outer.clone());
     }
-
-    let tracker = StackTracker::begin(g);
 
     for item in items {
         match item {
@@ -554,8 +564,7 @@ fn generate_block(
         }
     }
 
-    tracker.end_scope(g)?;
-    g.allocator = old_allocator;
+    g.allocator.exit_scope();
 
     Ok(())
 }
@@ -590,6 +599,7 @@ pub fn generate_function(
     labels: &mut LabelGenerator,
     platform: &str,
     debug: bool,
+    global_vars: &HashMap<String, Variable>,
 ) -> Result<String, Box<dyn Error>> {
     if function.block_items.is_none() {
         return Err("cannot generate function declaration".into());
@@ -603,7 +613,7 @@ pub fn generate_function(
         "w19", "w20", "w21", "w22", "w23", "w24", "w25", "w26", "w27", "w28",
     ];
 
-    let mut dry_allocator = Allocator::new(free_use_registers);
+    let mut dry_allocator = Allocator::new(free_use_registers, global_vars);
     let mut max_stack = 0;
 
     let block_items = function.block_items.as_ref().unwrap();
@@ -649,7 +659,7 @@ pub fn generate_function(
     let mut generator = Generator {
         output: &mut output,
         labels,
-        allocator: Allocator::new(free_use_registers.as_slice()),
+        allocator: Allocator::new(free_use_registers, global_vars),
         epilogue: epilogue.clone(),
         debug_enabled: debug,
         platform: platform.to_string(),
@@ -681,6 +691,10 @@ pub fn generate_function(
             }
             Variable::Stack(offset) => {
                 writeln!(generator.output, "str\tw{}, [x29, #{:+}]", i, offset)?;
+            }
+            Variable::Global(label) => {
+                Variable::emit_global_variable_address_load_x1(&label, generator.output, platform)?;
+                writeln!(generator.output, "str\tw{}, [x1]", i)?;
             }
         }
     }
@@ -723,33 +737,88 @@ pub fn generate_function(
 }
 
 pub fn generate(program: &Program, platform: &str, debug: bool) -> Result<String, Box<dyn Error>> {
+    validate_functions_declarations(program)?;
+    check_global_name_conflicts(program)?;
+
     let mut output = String::new();
+    let mut labels = LabelGenerator::new();
+
+    let mut global_vars_all: HashMap<String, Variable> = HashMap::new();
+    let mut global_vars_definitions: HashMap<String, &Option<Expr>> = HashMap::new();
+
+    // first loop: generate global data
+    let mut any_globals = false;
+    for item in &program.toplevel_items {
+        if let TopLevel::GlobalVariable(Declare(name, expr)) = item {
+            if !any_globals {
+                writeln!(output, ".data")?;
+                any_globals = true;
+            }
+            if let Some(prev) = global_vars_definitions.get(name) {
+                if prev.is_some() {
+                    return Err(format!("global variable {name} defined twice").into());
+                }
+            }
+
+            let mut val = 0;
+            if let Some(expr) = expr {
+                val = evaluate_compile_time_expr(expr)?;
+            }
+
+            let prefix = function_label_prefix(platform)?;
+            let label = labels.next(&format!("{prefix}global_{name}"));
+            writeln!(output, ".global\t{label}")?;
+            writeln!(output, "{label}:")?;
+            writeln!(output, "\t.word\t{val}")?;
+
+            global_vars_all.insert(name.clone(), Variable::Global(label));
+            global_vars_definitions.insert(name.clone(), expr);
+        }
+    }
+
+    // emit all functions in .text
+    writeln!(output, ".text")?;
+    writeln!(output, ".p2align 2")?; // for AArch64
 
     let bingus_used = program
-        .functions
+        .toplevel_items
         .iter()
+        .filter_map(|item| match item {
+            TopLevel::Function(f) => Some(f),
+            _ => None,
+        })
         .filter_map(|f| f.block_items.as_ref())
         .flatten()
         .any(is_bingus_used);
+
     if bingus_used {
         match platform {
             "macos" => {
                 let bingus = include_bytes!("bingus_arm64_macos.s");
                 let bingus_s = std::str::from_utf8(bingus).expect("bingus.s not UTF-8");
-                output.write_str(bingus_s)?;
+                output.push_str(bingus_s);
             }
             _ => return Err(format!("bingus is not supported on platform {platform}").into()),
         }
     }
 
-    let mut labels = LabelGenerator::new();
+    let mut seen_globals = HashMap::new();
 
-    for function in &program.functions {
-        if function.block_items.is_none() {
-            continue;
+    for item in &program.toplevel_items {
+        match item {
+            TopLevel::GlobalVariable(Declare(name, _)) => {
+                // populate in declaration order
+                seen_globals.insert(name.clone(), global_vars_all.get(name).unwrap().clone());
+            }
+            TopLevel::Function(function) => {
+                if function.block_items.is_none() {
+                    continue;
+                }
+                output +=
+                    &generate_function(function, &mut labels, platform, debug, &seen_globals)?;
+                output.push('\n');
+            }
         }
-        output += &generate_function(function, &mut labels, platform, debug)?;
-        output.write_str("\n")?;
     }
 
     Ok(output)

@@ -177,6 +177,6 @@ impl fmt::Display for Function {
 
 impl fmt::Display for Program {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self.functions)
+        write!(f, "{:?}", self.toplevel_items)
     }
 }

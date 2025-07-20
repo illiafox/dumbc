@@ -2,26 +2,24 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Variable {
-    Stack(i32), // offset
-    Register(String),
+    Stack(i32),       // offset
+    Register(String), // register name
+    Global(String),   // .data label
 }
 
-#[derive(Clone)]
 pub struct Allocator {
     next_stack_offset: i32,
     used_registers: Vec<String>,
-    pub vars: HashMap<String, Variable>,
+    scopes: Vec<HashMap<String, Variable>>,
 }
 
 impl Allocator {
-    pub fn new(registers: &[&str]) -> Self {
+    pub fn new(registers: &[&str], global_vars: &HashMap<String, Variable>) -> Self {
+        let scopes = vec![global_vars.clone()];
         Self {
             next_stack_offset: 0,
-            used_registers: registers
-                .iter()
-                .map(std::string::ToString::to_string)
-                .collect(),
-            vars: HashMap::new(),
+            used_registers: registers.iter().map(|s| s.to_string()).collect(),
+            scopes,
         }
     }
 
@@ -38,28 +36,37 @@ impl Allocator {
         if self.used_registers.is_empty() {
             return None;
         }
-
         let register = self.used_registers.pop().unwrap();
         let var = Variable::Register(register);
-
-        self.vars.insert(name, var.clone());
+        self.scopes.last_mut().unwrap().insert(name, var.clone());
         Some(var)
     }
 
     fn allocate_stack(&mut self, name: String, size: i32) -> Variable {
-        self.next_stack_offset -= size; // alignment
+        self.next_stack_offset -= size;
         let var = Variable::Stack(self.next_stack_offset);
-        self.vars.insert(name, var.clone());
+        self.scopes.last_mut().unwrap().insert(name, var.clone());
         var
     }
 
     pub fn get(&self, name: &str) -> Option<&Variable> {
-        self.vars.get(name)
+        for scope in self.scopes.iter().rev() {
+            if let Some(var) = scope.get(name) {
+                return Some(var);
+            }
+        }
+        None
     }
 
     pub fn total_stack_size(&self) -> i32 {
         self.next_stack_offset.abs()
     }
 
-    // Optionally: implement allocate_register if you’re doing register allocation
+    pub fn enter_scope(&mut self) {
+        self.scopes.push(HashMap::new());
+    }
+
+    pub fn exit_scope(&mut self) {
+        self.scopes.pop();
+    }
 }

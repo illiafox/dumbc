@@ -3,7 +3,7 @@ use crate::ast::{BlockItem, Statement};
 use crate::generator::allocator::Allocator;
 
 pub fn simulate_stack_usage(items: &[BlockItem], allocator: &mut Allocator, max: &mut i32) {
-    let old_allocator = allocator.clone();
+    allocator.enter_scope();
 
     for item in items {
         match item {
@@ -15,7 +15,7 @@ pub fn simulate_stack_usage(items: &[BlockItem], allocator: &mut Allocator, max:
         }
     }
 
-    *allocator = old_allocator;
+    allocator.exit_scope();
 }
 
 fn simulate_stmt_stack(stmt: &Statement, allocator: &mut Allocator, max: &mut i32) {

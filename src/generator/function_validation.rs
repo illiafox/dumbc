@@ -1,4 +1,4 @@
-use crate::ast::{BlockItem, Program};
+use crate::ast::{BlockItem, Declaration, Expr, Program, TopLevel};
 use std::collections::HashMap;
 
 enum FuncKind {
@@ -17,39 +17,49 @@ enum FuncKind {
 pub fn validate_functions_declarations(program: &Program) -> Result<(), String> {
     let mut function_map: HashMap<String, FuncKind> = HashMap::new();
 
-    for func in &program.functions {
-        let arity = func.params.len();
+    for item in &program.toplevel_items {
+        match item {
+            TopLevel::Function(func) => {
+                let arity = func.params.len();
 
-        match function_map.get(&func.name) {
-            Some(FuncKind::Def(_)) if func.block_items.is_some() => {
-                return Err(format!("function {} defined multiple times", func.name));
-            }
+                match function_map.get(&func.name) {
+                    Some(FuncKind::Def(_)) if func.block_items.is_some() => {
+                        return Err(format!("function {} defined multiple times", func.name));
+                    }
 
-            Some(FuncKind::Decl(existing_arity)) | Some(FuncKind::Def(existing_arity)) => {
-                if *existing_arity != arity {
-                    return Err(format!(
-                        "function {} declared/defined with inconsistent parameter counts ({:?} vs {:?})",
-                        func.name, existing_arity, arity
-                    ));
+                    Some(FuncKind::Decl(existing_arity)) | Some(FuncKind::Def(existing_arity)) => {
+                        if *existing_arity != arity {
+                            return Err(format!(
+                                "function {} declared/defined with inconsistent parameter counts ({:?} vs {:?})",
+                                func.name, existing_arity, arity
+                            ));
+                        }
+                        // if consistent, do nothing
+                    }
+
+                    None => {
+                        let kind = if func.block_items.is_some() {
+                            FuncKind::Def(func.params.len())
+                        } else {
+                            FuncKind::Decl(func.params.len())
+                        };
+                        function_map.insert(func.name.clone(), kind);
+                    }
                 }
-                // if consistent, do nothing
             }
-
-            None => {
-                let kind = if func.block_items.is_some() {
-                    FuncKind::Def(func.params.len())
-                } else {
-                    FuncKind::Decl(func.params.len())
-                };
-                function_map.insert(func.name.clone(), kind);
-            }
+            TopLevel::GlobalVariable(_) => {}
         }
     }
 
     // Second pass: check function calls
-    for func in &program.functions {
-        if let Some(body) = &func.block_items {
-            validate_function_body(body, &function_map)?;
+    for item in &program.toplevel_items {
+        match item {
+            TopLevel::Function(func) => {
+                if let Some(body) = &func.block_items {
+                    validate_function_body(body, &function_map)?;
+                }
+            }
+            TopLevel::GlobalVariable(_) => {}
         }
     }
 
@@ -171,6 +181,44 @@ fn validate_function_body(
     for item in block_items {
         if let BlockItem::Stmt(stmt) = item {
             check_stmt(stmt, function_map)?;
+        }
+    }
+
+    Ok(())
+}
+
+use std::collections::HashSet;
+
+pub fn check_global_name_conflicts(program: &Program) -> Result<(), String> {
+    let mut function_names = HashSet::new();
+    let mut global_var_names: HashMap<&String, &Option<Expr>> = HashMap::new();
+
+    for item in &program.toplevel_items {
+        match item {
+            TopLevel::Function(func) => {
+                if !function_names.insert(&func.name) {
+                    return Err(format!("Duplicate function name: '{}'", func.name));
+                }
+            }
+            TopLevel::GlobalVariable(Declaration::Declare(name, expr)) => {
+                if let Some(&var) = global_var_names.get(name) {
+                    if var.is_some() {
+                        return Err(format!("Duplicate global variable definition: '{}'", name));
+                    }
+                }
+
+                global_var_names.insert(name, expr);
+            }
+        }
+    }
+
+    // Check for conflicts
+    for (name, _) in global_var_names {
+        if function_names.contains(name) {
+            return Err(format!(
+                "Name conflict: '{}' are used as both a global variable and a function",
+                name
+            ));
         }
     }
 
