@@ -187,17 +187,21 @@ fn validate_function_body(
     Ok(())
 }
 
-use std::collections::HashSet;
-
 pub fn check_global_name_conflicts(program: &Program) -> Result<(), String> {
-    let mut function_names = HashSet::new();
+    let mut function_names: HashMap<&String, bool> = HashMap::new(); // func name -> has_definition
     let mut global_var_names: HashMap<&String, &Option<Expr>> = HashMap::new();
 
     for item in &program.toplevel_items {
         match item {
             TopLevel::Function(func) => {
-                if !function_names.insert(&func.name) {
-                    return Err(format!("Duplicate function name: '{}'", func.name));
+                let has_definition = func.block_items.is_some();
+
+                if let Some(&defined) = function_names.get(&func.name) {
+                    if defined && has_definition {
+                        return Err(format!("function '{}' defined twice", func.name));
+                    }
+                } else {
+                    function_names.insert(&func.name, has_definition);
                 }
             }
             TopLevel::GlobalVariable(Declaration::Declare(name, expr)) => {
@@ -214,7 +218,7 @@ pub fn check_global_name_conflicts(program: &Program) -> Result<(), String> {
 
     // Check for conflicts
     for (name, _) in global_var_names {
-        if function_names.contains(name) {
+        if function_names.contains_key(name) {
             return Err(format!(
                 "Name conflict: '{}' are used as both a global variable and a function",
                 name
