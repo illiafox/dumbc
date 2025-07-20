@@ -36,7 +36,9 @@ Built by following [Nora Sandler’s "Write a Compiler"](https://norasandler.com
   - arrays and pointers
   - structs
 - [ ] Constants
-- [ ] Optimizations: constant folding, dead code elimination
+- [ ] Optimizations
+  - [x] constant folding
+  - [ ] dead code elimination
 ---
 
 ## Usage
