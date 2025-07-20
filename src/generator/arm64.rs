@@ -213,6 +213,16 @@ fn emit_fun_call(g: &mut Generator, name: &str, args: &[Expr]) -> Result<(), Box
 }
 
 fn generate_expr(g: &mut Generator, expr: &Expr) -> Result<(), Box<dyn Error>> {
+    match evaluate_compile_time_expr(expr) {
+        Ok(n) => {
+            // TODO: move to optimisation pass in future
+            generate_expr_runtime(g, &Expr::Const(n))
+        }
+        Err(_) => generate_expr_runtime(g, expr),
+    }
+}
+
+fn generate_expr_runtime(g: &mut Generator, expr: &Expr) -> Result<(), Box<dyn Error>> {
     match expr {
         Expr::Const(n) => {
             writeln!(g.output, "mov\tw0, #{n}")?;
