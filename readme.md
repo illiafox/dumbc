@@ -31,7 +31,7 @@ Built by following [Nora Sandler’s "Write a Compiler"](https://norasandler.com
 - [x] Part 8: Loops
 - [x] Part 9: Functions (with calls to the C standard library!)
 - [x] Part 10: Global Variables
-- [ ] Part 2 of [_Writing a C Compiler_](https://norasandler.com/2022/03/29/Write-a-C-Compiler-the-Book.html) book
+- [ ] Part II of [_Writing a C Compiler_](https://norasandler.com/2022/03/29/Write-a-C-Compiler-the-Book.html) book
   - floating-point numbers
   - arrays and pointers
   - structs
