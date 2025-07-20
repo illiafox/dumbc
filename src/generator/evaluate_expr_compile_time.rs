@@ -26,8 +26,6 @@ pub fn evaluate_compile_time_expr(expr: &Expr) -> Result<i32, Box<dyn Error>> {
                 BinaryOp::Add => Ok(l_val + r_val),
                 BinaryOp::Sub => Ok(l_val - r_val),
                 BinaryOp::Multiply => Ok(l_val * r_val),
-                BinaryOp::Divide => Ok(l_val / r_val),
-                BinaryOp::Modulo => Ok(l_val % r_val),
                 BinaryOp::And => Ok(l_val & r_val),
                 BinaryOp::Or => Ok(l_val | r_val),
                 BinaryOp::Xor => Ok(l_val ^ r_val),
@@ -39,9 +37,20 @@ pub fn evaluate_compile_time_expr(expr: &Expr) -> Result<i32, Box<dyn Error>> {
                 BinaryOp::LessEqual => Ok((l_val <= r_val) as i32),
                 BinaryOp::Greater => Ok((l_val > r_val) as i32),
                 BinaryOp::GreaterEqual => Ok((l_val >= r_val) as i32),
-                _ => {
-                    Err(format!("operator not supported in compile-time evaluation: {op:?}").into())
+                BinaryOp::Divide => {
+                    if r_val == 0 {
+                        return Err("division by zero in constant expression".into());
+                    }
+                    Ok(l_val.wrapping_div(r_val))
                 }
+                BinaryOp::Modulo => {
+                    if r_val == 0 {
+                        return Err("modulo by zero in constant expression".into());
+                    }
+                    Ok(l_val.wrapping_rem(r_val))
+                }
+                BinaryOp::ShiftLeft => Ok(l_val.wrapping_shl(r_val as u32)),
+                BinaryOp::ShiftRight => Ok(((l_val as u32) >> (r_val & 31)) as i32),
             }
         }
 
