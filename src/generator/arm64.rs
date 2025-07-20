@@ -13,6 +13,7 @@ use crate::generator::function_validation::{
 };
 use crate::generator::label::LabelGenerator;
 use crate::generator::stack::simulate_stack_usage;
+use crate::optimizer::fold_expr::constant_fold;
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fmt;
@@ -213,16 +214,6 @@ fn emit_fun_call(g: &mut Generator, name: &str, args: &[Expr]) -> Result<(), Box
 }
 
 fn generate_expr(g: &mut Generator, expr: &Expr) -> Result<(), Box<dyn Error>> {
-    match evaluate_compile_time_expr(expr) {
-        Ok(n) => {
-            // TODO: move to optimisation pass in future
-            generate_expr_runtime(g, &Expr::Const(n))
-        }
-        Err(_) => generate_expr_runtime(g, expr),
-    }
-}
-
-fn generate_expr_runtime(g: &mut Generator, expr: &Expr) -> Result<(), Box<dyn Error>> {
     match expr {
         Expr::Const(n) => {
             writeln!(g.output, "mov\tw0, #{n}")?;
@@ -747,8 +738,10 @@ pub fn generate_function(
 }
 
 pub fn generate(program: &Program, platform: &str, debug: bool) -> Result<String, Box<dyn Error>> {
-    validate_functions_declarations(program)?;
-    check_global_name_conflicts(program)?;
+    let program = constant_fold(program);
+
+    validate_functions_declarations(&program)?;
+    check_global_name_conflicts(&program)?;
 
     let mut output = String::new();
     let mut labels = LabelGenerator::new();

@@ -6,6 +6,7 @@ use generator::arm64::generate;
 mod ast;
 mod generator;
 mod lexer;
+mod optimizer;
 mod parser;
 
 /// Simple program to greet a person
