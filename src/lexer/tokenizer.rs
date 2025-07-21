@@ -128,6 +128,34 @@ pub fn lex(input: &str) -> Result<Vec<Token>, String> {
             continue;
         }
 
+        if ch == '\'' {
+            // char literal
+            chars.next(); // consume opening '
+
+            let ch = match chars.next() {
+                Some('\\') => match chars.next() {
+                    Some('n') => '\n',
+                    Some('t') => '\t',
+                    Some('r') => '\r',
+                    Some('\'') => '\'',
+                    Some('\"') => '\"',
+                    Some('\\') => '\\',
+                    Some(other) => return Err(format!("Unknown escape sequence: \\{}", other)),
+                    None => return Err("Incomplete escape sequence".into()),
+                },
+                Some(c) => c,
+                None => return Err("Unexpected end after opening character literal".into()),
+            };
+
+            match chars.next() {
+                Some('\'') => tokens.push(Token::CharLiteral(ch)),
+                Some(other) => return Err(format!("Expected closing ', found '{}'", other)),
+                None => return Err("Unterminated character literal".into()),
+            }
+
+            continue;
+        }
+
         if skip_comment_if_present(&mut chars)? {
             continue;
         }
@@ -213,6 +241,24 @@ mod tests {
                 Token::IntLiteral(1),
                 Token::Semicolon,
                 Token::RBrace,
+            ]
+        );
+    }
+
+    #[test]
+    fn test_lexer_char_literal() {
+        let code = "return 'a'; return '\\n';";
+        let tokens = lex(code).unwrap();
+
+        assert_eq!(
+            &tokens,
+            &[
+                Token::KeywordReturn,
+                Token::CharLiteral('a'),
+                Token::Semicolon,
+                Token::KeywordReturn,
+                Token::CharLiteral('\n'),
+                Token::Semicolon,
             ]
         );
     }
