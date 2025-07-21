@@ -1,4 +1,4 @@
-int foo = 4;
+int foo = 4 + 1 * 11;
 int putchar(int c);
 
 int main() {

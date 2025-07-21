@@ -7,12 +7,12 @@ use crate::ast::{
 };
 use crate::generator::allocator::{Allocator, Variable};
 use crate::generator::bingus::is_bingus_used;
-use crate::generator::evaluate_expr_compile_time::evaluate_compile_time_expr;
 use crate::generator::function_validation::{
     check_global_name_conflicts, validate_functions_declarations,
 };
 use crate::generator::label::LabelGenerator;
 use crate::generator::stack::simulate_stack_usage;
+use crate::optimizer::evaluate_expr_compile_time::evaluate_compile_time_expr;
 use crate::optimizer::fold_expr::constant_fold;
 use std::collections::{HashMap, HashSet};
 use std::error::Error;

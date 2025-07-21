@@ -1,5 +1,5 @@
 use crate::ast::*;
-use crate::generator::evaluate_expr_compile_time::evaluate_compile_time_expr;
+use crate::optimizer::evaluate_expr_compile_time::evaluate_compile_time_expr;
 
 /// Fold as much as possible in an `Expr`.
 fn fold_expr(e: &Expr) -> Expr {
