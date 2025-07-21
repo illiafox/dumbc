@@ -30,8 +30,15 @@ Built by following [Nora Sandler’s "Write a Compiler"](https://norasandler.com
 - [x] Part 7: Compound Statements
 - [x] Part 8: Loops
 - [x] Part 9: Functions (with calls to the C standard library!)
-- [ ] Part 10: Global Variables
-
+- [x] Part 10: Global Variables
+- [ ] Part II of [_Writing a C Compiler_](https://norasandler.com/2022/03/29/Write-a-C-Compiler-the-Book.html) book
+  - floating-point numbers
+  - arrays and pointers
+  - structs
+- [ ] Constants
+- [ ] Optimizations
+  - [x] constant folding
+  - [ ] dead code elimination
 ---
 
 ## Usage

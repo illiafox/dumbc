@@ -1,4 +1,3 @@
-use crate::generator::function_validation::validate_functions_declarations;
 use crate::lexer::lex;
 use crate::parser::parse;
 use clap::Parser;
@@ -7,6 +6,7 @@ use generator::arm64::generate;
 mod ast;
 mod generator;
 mod lexer;
+mod optimizer;
 mod parser;
 
 /// Simple program to greet a person
@@ -54,8 +54,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if args.debug {
         println!("program: {}", program);
     }
-
-    validate_functions_declarations(&program)?;
 
     let asm = generate(&program, &args.platform, args.debug)?;
 

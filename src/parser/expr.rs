@@ -50,6 +50,11 @@ fn parse_factor(tokens: &[Token], pos: &mut usize) -> Result<Expr, String> {
             Ok(Const(*n))
         }
 
+        Some(Token::CharLiteral(ch)) => {
+            *pos += 1;
+            Ok(Const(*ch as i32))
+        }
+
         Some(Token::LParen) => {
             *pos += 1;
             let expr = parse_expr(tokens, pos)?;

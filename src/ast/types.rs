@@ -150,6 +150,12 @@ pub struct Function {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum TopLevel {
+    Function(Function),
+    GlobalVariable(Declaration),
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Program {
-    pub functions: Vec<Function>,
+    pub toplevel_items: Vec<TopLevel>,
 }
