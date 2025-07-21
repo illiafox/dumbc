@@ -30,6 +30,7 @@ pub enum Token {
     Identifier(String),
     /// An `int` literal, such as 123
     IntLiteral(i32),
+    /// A character literal, such as 'k', '\n'
     CharLiteral(char),
 
     /// Literal "("
